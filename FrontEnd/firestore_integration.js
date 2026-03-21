@@ -196,3 +196,15 @@ window.db_uploadFile = async function(file, folder = 'chat-files') {
 window.__FIRESTORE_READY__ = true;
 console.log('✅ Todas las funciones de Firestore listas en window.db_*');
 console.log('📦 Firebase Storage listo en window.db_uploadFile');
+
+// ── Obtener todos los usuarios ──────────────────────────
+window.db_getAllUsers = async function() {
+    try {
+        const snap = await getDocs(collection(db, 'users'));
+        return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    } catch(e) {
+        console.error('❌ Error cargando usuarios:', e);
+        return [];
+    }
+};
+console.log('👥 db_getAllUsers listo');
