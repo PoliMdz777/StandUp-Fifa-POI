@@ -872,7 +872,10 @@
 <div class="toast-container" id="toast-container"></div>
 
 <!-- SCRIPTS del servidor y Firestore -->
-<script src="server-config.js"></script>
+<script>
+    window.__FIFA_SERVER__ = 'https://standup-fifa-poi.onrender.com';
+    console.log('🌐 Servidor:', window.__FIFA_SERVER__);
+</script>
 <script type="module" src="firestore_integration.js"></script>
 <!--Socket.io-->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.1/socket.io.min.js"></script>
