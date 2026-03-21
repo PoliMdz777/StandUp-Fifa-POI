@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FIFA 2026 - Tourist Hub</title>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- ─── MOBILE TOPBAR ─────────────────────────────── -->
+<div class="mobile-topbar">
+    <button class="hamburger-btn" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
+    <div class="mobile-brand"><span>⚽</span> Tourist Hub</div>
+    <button class="mobile-notif-btn" onclick="switchTab('chat',document.getElementById('tab-chat'))">
+        <i class="fas fa-bell"></i>
+        <span class="mobile-notif-dot" id="mobile-notif-dot" style="display:none"></span>
+    </button>
+</div>
+<div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
+
+<!-- ─── APP CONTAINER ────────────────────────────── -->
+<div class="app-container">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+        <button class="sidebar-close-btn" onclick="closeSidebar()"><i class="fas fa-times"></i></button>
+
+        
+        <div class="user-profile" onclick="openModal('profile-modal')" title="Editar perfil" style="cursor:pointer">
+            <div class="avatar-wrap">
+                <img src="https://api.dicebear.com/7.x/adventurer/svg?seed=tourist" class="avatar" id="user-avatar" alt="">
+                <span class="online-dot" id="my-status-dot"></span>
+            </div>
+            <div class="user-info">
+                <h3 id="sidebar-username">Turista 1</h3>
+                <span class="level-badge"><i class="fas fa-star"></i> <span id="sidebar-level">Explorer</span></span>
+            </div>
+            <div onclick="event.stopPropagation()">
+                <select class="status-mini-select" id="my-status-select" onchange="changeMyStatus(this.value)">
+                    <option value="online">🟢</option>
+                    <option value="away">🟡</option>
+                    <option value="busy">🔴</option>
+                    <option value="offline">⚫</option>
+                </select>
+            </div>
+        </div>
+
+        <nav class="menu">
+            <button class="menu-btn active" id="tab-chat" onclick="switchTab('chat',this)">
+                <i class="fas fa-comments"></i> Chats
+                <span class="notif-badge" id="chat-notif" style="display:none">0</span>
+            </button>
+            <button class="menu-btn" id="tab-tasks" onclick="switchTab('tasks',this)">
+                <i class="fas fa-tasks"></i> Tareas
+                <span class="notif-badge" id="tasks-notif" style="display:none">0</span>
+            </button>
+            <button class="menu-btn" id="tab-rewards" onclick="switchTab('rewards',this)">
+                <i class="fas fa-trophy"></i> Recompensas
+            </button>
+        </nav>
+
+        <div class="contact-list">
+            <div class="contact-header">
+                <h4>Chats</h4>
+                <div style="display:flex;gap:6px">
+                    <button class="new-chat-btn" onclick="openModal('email-modal')" title="Enviar correo"><i class="fas fa-envelope"></i></button>
+                    <button class="new-chat-btn" onclick="openModal('create-group-modal')" title="Nuevo grupo"><i class="fas fa-plus"></i></button>
+                </div>
+            </div>
+            <ul id="contacts">
+                <li class="contact-item active-chat" data-chat-id="grupo_tour" onclick="selectChat('group','grupo_tour','Grupo Tour Estadio','group',this)">
+                    <div class="contact-avatar group-av"><i class="fas fa-users"></i></div>
+                    <div class="contact-info">
+                        <span class="contact-name">Grupo Tour Estadio</span>
+                        <span class="contact-preview" id="preview-grupo_tour">¡Hola! ¿A qué hora nos vemos?</span>
+                    </div>
+                    <span class="unread-badge" id="badge-grupo_tour" style="display:none">0</span>
+                </li>
+                <li class="contact-item" data-chat-id="guia_local" onclick="selectChat('private','guia_local','Guía Carlos','user',this)">
+                    <div class="contact-avatar">
+                        <img src="https://api.dicebear.com/7.x/adventurer/svg?seed=carlos" alt="">
+                        <span class="status-indicator offline" id="status-guia_local"></span>
+                    </div>
+                    <div class="contact-info">
+                        <span class="contact-name">Guía Carlos</span>
+                        <span class="contact-preview" id="preview-guia_local">Te esperamos en el metro</span>
+                    </div>
+                    <span class="unread-badge" id="badge-guia_local" style="display:none">0</span>
+                </li>
+                <li class="contact-item" data-chat-id="turista_mx" onclick="selectChat('private','turista_mx','María González','user',this)">
+                    <div class="contact-avatar">
+                        <img src="https://api.dicebear.com/7.x/adventurer/svg?seed=maria" alt="">
+                        <span class="status-indicator online" id="status-turista_mx"></span>
+                    </div>
+                    <div class="contact-info">
+                        <span class="contact-name">María González</span>
+                        <span class="contact-preview" id="preview-turista_mx">¿Viste el partido? ⚽</span>
+                    </div>
+                    <span class="unread-badge" id="badge-turista_mx" style="display:none">0</span>
+                </li>
+            </ul>
+
+            <li class="contact-item" data-chat-id="asistente_ia" 
+              onclick="selectChat('private','asistente_ia','Asistente IA 🤖','ai',this)">
+             <div class="contact-avatar ai-av">🤖</div>
+             <div class="contact-info">
+             <span class="contact-name">Asistente IA 🤖</span>
+             <span class="contact-preview" id="preview-asistente_ia">Pregúntame sobre el Mundial ⚽</span>
+             </div>
+             <span class="unread-badge" id="badge-asistente_ia" style="display:none">0</span>
+            </li>
+
+        </div>
+         <button class="logout-btn" onclick="logoutApp()">
+            <i class="fas fa-sign-out-alt"></i> Cerrar sesión
+        </button>
+      <!--
+        
+      <button class="logout-btn" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Cerrar sesión</button>
+      -->
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="main-content">
+
+        <!-- ════ TAB: CHAT ════ -->
+        <section id="chat-section" class="tab-content" style="display:flex;">
+            <header class="chat-header">
+                <div class="chat-header-left">
+                    <div class="chat-avatar-sm" id="current-chat-avatar"><i class="fas fa-users"></i></div>
+                    <div>
+                        <h2 id="current-chat-name">Grupo Tour Estadio</h2>
+                        <span class="chat-status" id="current-chat-status">
+                            <i class="fas fa-circle pulse-dot"></i> 4 miembros en línea
+                        </span>
+                    </div>
+                </div>
+                <div class="chat-tools">
+                    <button class="tool-btn" id="videocall-btn" onclick="openVideoCall()" title="Videollamada" style="display:none"><i class="fas fa-video"></i></button>
+                    <button class="tool-btn" id="email-chat-btn" onclick="prefillEmail()" title="Enviar correo" style="display:none"><i class="fas fa-envelope"></i></button>
+                    <label class="switch" title="Encriptación E2E">
+                        <input type="checkbox" id="encryption-toggle">
+                        <span class="slider round"></span>
+                    </label>
+                    <span class="encryption-label"><i class="fas fa-lock" id="enc-icon"></i></span>
+                </div>
+            </header>
+            <div class="enc-banner" id="enc-banner" style="display:none">
+                <i class="fas fa-lock"></i> Los mensajes están cifrados de extremo a extremo
+            </div>
+            <div class="chat-messages" id="chat-messages">
+                <div class="day-divider"><span>Hoy</span></div>
+                <div class="message received">
+                    <div class="msg-sender">Turista 23</div>
+                    <p>¡Hola a todos! ¿A qué hora nos vemos para ir al estadio? 🏟️</p>
+                    <span class="time">10:00 AM</span>
+                </div>
+                <div class="message sent">
+                    <p>Yo sugiero tomar el metro a las 12:00 PM ⚽</p>
+                    <span class="time">10:05 AM</span>
+                    <span class="msg-status"><i class="fas fa-check-double"></i></span>
+                </div>
+                <div class="message received">
+                    <div class="msg-sender">Guía Carlos</div>
+                    <p>Perfecto. Les comparto la ruta 📍</p>
+                    <div class="location-msg" onclick="openModal('view-loc-modal')">
+                        <i class="fas fa-map-marker-alt"></i>
+                        <span>Ver ubicación: Metro Estadio, Línea 2</span>
+                        <i class="fas fa-external-link-alt"></i>
+                    </div>
+                    <span class="time">10:07 AM</span>
+                </div>
+            </div>
+
+
+
+            <div class="chat-input-area">
+                <button class="attach-btn" title="Adjuntar archivo" onclick="openModal('file-modal')"><i class="fas fa-paperclip"></i></button>
+                <button class="attach-btn" title="Compartir ubicación" onclick="shareLocation()"><i class="fas fa-map-marker-alt"></i></button>
+                <button class="attach-btn emoji-trigger-btn" onclick="toggleEmojiPicker()" title="Mis emojis">😊</button>
+                <div class="input-wrap">
+                    <input type="text" id="message-input" placeholder="Escribe un mensaje...">
+                    <div class="file-preview" id="file-preview" style="display:none">
+                        <i class="fas fa-file"></i>
+                        <span id="file-name-preview"></span>
+                        <button onclick="clearFile()"><i class="fas fa-times"></i></button>
+                    </div>
+                </div>
+                <button class="send-btn" id="send-btn"><i class="fas fa-paper-plane"></i></button>
+            </div>
+        </section>
+
+        <!-- ════ TAB: TASKS ════ -->
+        <section id="tasks-section" class="tab-content" style="display:none;">
+            <div class="section-header">
+                <h2><i class="fas fa-tasks"></i> Tareas del Grupo</h2>
+                <span class="task-count" id="task-count">0 de 0 completadas</span>
+            </div>
+            <div class="add-task-bar">
+                <input type="text" id="new-task-input" placeholder="Nueva tarea para el grupo..." onkeypress="if(event.key==='Enter')addTask()">
+                <select id="task-assignee">
+                    <option value="">Todos</option>
+                    <option>Turista 1</option><option>Turista 23</option>
+                    <option>Guía Carlos</option><option>María González</option>
+                </select>
+                <button class="btn-add-task" onclick="addTask()"><i class="fas fa-plus"></i> <span class="btn-text-resp">Agregar</span></button>
+            </div>
+            <div class="task-list" id="task-list">
+                <div class="task-item" data-id="1">
+                    <div class="task-check-wrap">
+                        <input type="checkbox" id="task1" onchange="toggleTask(1,this)">
+                        <label for="task1" class="task-label">Comprar boletos del metro 🚇</label>
+                    </div>
+                    <div class="task-meta">
+                        <span class="task-assignee-badge"><i class="fas fa-user"></i> Turista 1</span>
+                        <button class="task-del" onclick="deleteTask(1)"><i class="fas fa-trash"></i></button>
+                    </div>
+                </div>
+                <div class="task-item" data-id="2">
+                    <div class="task-check-wrap">
+                        <input type="checkbox" id="task2" onchange="toggleTask(2,this)">
+                        <label for="task2" class="task-label">Reservar restaurante cerca de la Macroplaza 🍽️</label>
+                    </div>
+                    <div class="task-meta">
+                        <span class="task-assignee-badge"><i class="fas fa-user"></i> Todos</span>
+                        <button class="task-del" onclick="deleteTask(2)"><i class="fas fa-trash"></i></button>
+                    </div>
+                </div>
+                <div class="task-item done" data-id="3">
+                    <div class="task-check-wrap">
+                        <input type="checkbox" id="task3" checked onchange="toggleTask(3,this)">
+                        <label for="task3" class="task-label">Confirmar horario del partido ✅</label>
+                    </div>
+                    <div class="task-meta">
+                        <span class="task-assignee-badge"><i class="fas fa-user"></i> Turista 23</span>
+                        <button class="task-del" onclick="deleteTask(3)"><i class="fas fa-trash"></i></button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ════ TAB: REWARDS ════ -->
+        <section id="rewards-section" class="tab-content" style="display:none;">
+            <div class="section-header">
+                <h2><i class="fas fa-trophy"></i> Recompensas</h2>
+            </div>
+
+            <!-- Fila superior: Card + Nivel -->
+            <div class="rewards-layout">
+                <div class="player-card">
+                    <div class="player-card-bg"></div>
+                    <div class="player-rating" id="card-pts">1500</div>
+                    <div class="player-pos">EXP</div>
+                    <img src="https://api.dicebear.com/7.x/adventurer/svg?seed=tourist" class="player-avatar" id="card-avatar" alt="">
+                    <div class="player-name" id="card-username">TURISTA</div>
+                    <div class="player-nation" id="card-nation">🇲🇽 México</div>
+                    <div class="player-stats">
+                        <div><span>5</span><br><small>POI</small></div>
+                        <div><span>3</span><br><small>Grupos</small></div>
+                        <div><span id="badge-count">2</span><br><small>Logros</small></div>
+                    </div>
+                </div>
+                <div class="rewards-right">
+                    <div class="level-card">
+                        <div class="level-title">Nivel: <span id="level-name">Explorer</span></div>
+                        <div class="level-levels">
+                            <div class="lv lv-done">🥉 Rookie</div><div class="lv-arrow">→</div>
+                            <div class="lv lv-active">🥈 Explorer</div><div class="lv-arrow">→</div>
+                            <div class="lv" id="lv-champion">🥇 Champion</div><div class="lv-arrow">→</div>
+                            <div class="lv" id="lv-elite">💎 Elite</div><div class="lv-arrow">→</div>
+                            <div class="lv" id="lv-legend">👑 Legend</div>
+                        </div>
+                        <div class="progress-wrap">
+                            <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:60%"></div></div>
+                            <span class="progress-label" id="progress-label">1500 / 2500 XP para Champion</span>
+                        </div>
+                    </div>
+                    <div class="badges-section">
+                        <h4>Logros Desbloqueados</h4>
+                        <div class="badges-grid">
+                            <div class="badge-item unlocked" title="Primer mensaje enviado"><div class="badge-icon">💬</div><span>Mensajero</span></div>
+                            <div class="badge-item unlocked" title="Visitar 5 POIs"><div class="badge-icon">🗺️</div><span>Explorador</span></div>
+                            <div class="badge-item" id="badge-tasks" title="Completar 10 tareas"><div class="badge-icon">✅</div><span>Eficiente</span></div>
+                            <div class="badge-item" id="badge-vc" title="Hacer videollamada"><div class="badge-icon">📹</div><span>Conectado</span></div>
+                            <div class="badge-item" id="badge-loc" title="Compartir ubicación"><div class="badge-icon">📍</div><span>Guía</span></div>
+                            <div class="badge-item" id="badge-email" title="Enviar correo"><div class="badge-icon">📧</div><span>Comunicador</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TIENDA con pestañas -->
+            <div class="store-section">
+                <div class="store-header">
+                    <h4><i class="fas fa-store"></i> Tienda</h4>
+                    <span class="pts-display" id="pts-display"><i class="fas fa-coins"></i> 1500 pts</span>
+                </div>
+
+                <!-- Tabs de categorías -->
+                <div class="store-tabs">
+                    <button class="store-tab active" onclick="switchStoreTab('marcos',this)">🖼️ Marcos</button>
+                    <button class="store-tab" onclick="switchStoreTab('fondos',this)">🎨 Fondos</button>
+                    <button class="store-tab" onclick="switchStoreTab('insignias',this)">🏅 Insignias</button>
+                    <button class="store-tab" onclick="switchStoreTab('iconos',this)">👤 Iconos</button>
+                    <button class="store-tab" onclick="switchStoreTab('burbujas',this)">💬 Burbujas</button>
+                    <button class="store-tab" onclick="switchStoreTab('emojis',this)">😊 Emojis</button>
+                </div>
+
+                <!-- ── TAB: MARCOS ───────────────────────────────── -->
+                <div class="store-tab-content active" id="store-tab-marcos">
+                    <div class="store-grid">
+                        <div class="store-item owned">
+                            <div class="store-preview si-frame si-stadium">🏟️</div>
+                            <span class="store-name">Marco Estadio</span>
+                            <span class="store-desc">FIFA 2026 · Monterrey</span>
+                            <button class="btn-store equipped" id="btn-stadium_frame" onclick="buyItem('stadium_frame',0,'frame','stadium-frame')"><i class="fas fa-check-circle"></i> Equipado</button>
+                        </div>
+                        <div class="store-item">
+                            <div class="store-preview si-frame si-gold">⭐</div>
+                            <span class="store-name">Marco Gold</span>
+                            <span class="store-desc">Borde dorado premium</span>
+                            <button class="btn-store" id="btn-gold_frame" onclick="buyItem('gold_frame',500,'frame','gold-frame')"><i class="fas fa-coins"></i> 500</button>
+                        </div>
+                        <div class="store-item">
+                            <div class="store-preview si-frame si-teal">🌊</div>
+                            <span class="store-name">Marco Teal</span>
+                            <span class="store-desc">Estilo turquesa FIFA</span>
+                            <button class="btn-store" id="btn-teal_frame" onclick="buyItem('teal_frame',350,'frame','teal-frame')"><i class="fas fa-coins"></i> 350</button>
+                        </div>
+                        <div class="store-item">
+                            <div class="store-preview si-frame si-mty">⚽</div>
+                            <span class="store-name">Marco MTY</span>
+                            <span class="store-desc">Orgullo regiomontano</span>
+                            <button class="btn-store" id="btn-mty_frame" onclick="buyItem('mty_frame',600,'frame','mty-frame')"><i class="fas fa-coins"></i> 600</button>
+                        </div>
+                        <div class="store-item">
+                            <div class="store-preview si-frame si-fire">🔥</div>
+                            <span class="store-name">Marco Fuego</span>
+                            <span class="store-desc">Animado — nivel Elite+</span>
+                            <button class="btn-store" id="btn-fire_frame" onclick="buyItem('fire_frame',900,'frame','fire-frame')"><i class="fas fa-coins"></i> 900</button>
+                        </div>
+                        <div class="store-item locked">
+                            <div class="store-preview si-frame si-legend">👑</div>
+                            <span class="store-name">Marco Legend</span>
+                            <span class="store-desc">Solo para Legends</span>
+                            <button class="btn-store" disabled><i class="fas fa-lock"></i> Legend</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── TAB: FONDOS ───────────────────────────────── -->
+                <div class="store-tab-content" id="store-tab-fondos">
+                    <div class="store-grid">
+                        <div class="store-item">
+                            <div class="store-preview" style="background:linear-gradient(135deg,#0A0E1A,#1a2040,#F0C040);border-radius:10px;"></div>
+                            <span class="store-name">Fondo FIFA Gold</span>
+                            <span class="store-desc">Azul noche + dorado</span>
+                            <button class="btn-store" id="btn-fifa_gold_bg" onclick="buyItem('fifa_gold_bg',400,'bg','fifa-gold-bg')"><i class="fas fa-coins"></i> 400</button>
+                        </div>
+                        <div class="store-item">
+                            <div class="store-preview" style="background:linear-gradient(135deg,#002B36,#00C9A7,#004d40);border-radius:10px;"></div>
+                            <span class="store-name">Fondo Teal Night</span>
+                            <span class="store-desc">Verde turquesa oscuro</span>
+                            <button class="btn-store" id="btn-teal_night_bg" onclick="buyItem('teal_night_bg',450,'bg','teal-night-bg')"><i class="fas fa-coins"></i> 450</button>
+                        </div>
+                        <div class="store-item">
+                            <div class="store-preview" style="background:linear-gradient(135deg,#6B1B8A,#FF6B35,#FFD23F);border-radius:10px;"></div>
+                            <span class="store-name">Fondo Sunset MTY</span>
+                            <span class="store-desc">Atardecer regiomontano</span>
+                            <button class="btn-store" id="btn-sunset_bg" onclick="buyItem('sunset_bg',500,'bg','sunset-bg')"><i class="fas fa-coins"></i> 500</button>
+                        </div>
+                        <div class="store-item">
+                            <div class="store-preview" style="background:linear-gradient(135deg,#0A0E1A,#1B2A4A,#3A86FF);border-radius:10px;"></div>
+                            <span class="store-name">Fondo Royal Blue</span>
+                            <span class="store-desc">Azul real elegante</span>
+                            <button class="btn-store" id="btn-royal_bg" onclick="buyItem('royal_bg',400,'bg','royal-bg')"><i class="fas fa-coins"></i> 400</button>
+                        </div>
+                        <div class="store-item">
+                            <div class="store-preview" style="background:linear-gradient(135deg,#1a4a2a,#52B788,#B7E4C7);border-radius:10px;"></div>
+                            <span class="store-name">Fondo Forest</span>
+                            <span class="store-desc">Verde bosque natural</span>
+                            <button class="btn-store" id="btn-forest_bg" onclick="buyItem('forest_bg',350,'bg','forest-bg')"><i class="fas fa-coins"></i> 350</button>
+                        </div>
+                        <div class="store-item">
+                            <div class="store-preview">🌮</div>
+                            <span class="store-name">Fondo MTY</span>
+                            <span class="store-desc">Monterrey clásico</span>
+                            <button class="btn-store" id="btn-mty_bg" onclick="buyItem('mty_bg',800,'bg','mty-bg')"><i class="fas fa-coins"></i> 800</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── TAB: INSIGNIAS ────────────────────────────── -->
+                <div class="store-tab-content" id="store-tab-insignias">
+                    <div class="store-grid">
+                        <div class="store-item">
+                            <div class="store-preview">🌟</div>
+                            <span class="store-name">Insignia Mundial</span>
+                            <span class="store-desc">FIFA 2026 oficial</span>
+                            <button class="btn-store" id="btn-mundial_badge" onclick="buyItem('mundial_badge',200,'badge','mundial-badge')"><i class="fas fa-coins"></i> 200</button>
+                        </div>
+                        <div class="store-item">
+                            <div class="store-preview">🦌</div>
+                            <span class="store-name">Insignia MTY</span>
+                            <span class="store-desc">Orgullo regio</span>
+                            <button class="btn-store" id="btn-mty_badge" onclick="buyItem('mty_badge',250,'badge','mty-badge')"><i class="fas fa-coins"></i> 250</button>
+                        </div>
+                        <div class="store-item">
+                            <div class="store-preview">⚽</div>
+                            <span class="store-name">Insignia Goleador</span>
+                            <span class="store-desc">Fan del gol</span>
+                            <button class="btn-store" id="btn-gol_badge" onclick="buyItem('gol_badge',300,'badge','gol-badge')"><i class="fas fa-coins"></i> 300</button>
+                        </div>
+                        <div class="store-item">
+                            <div class="store-preview">🎖️</div>
+                            <span class="store-name">Insignia VIP</span>
+                            <span class="store-desc">Acceso premium</span>
+                            <button class="btn-store" id="btn-vip_badge" onclick="buyItem('vip_badge',750,'badge','vip-badge')"><i class="fas fa-coins"></i> 750</button>
+                        </div>
+                        <div class="store-item locked">
+                            <div class="store-preview">🏆</div>
+                            <span class="store-name">Insignia Champion</span>
+                            <span class="store-desc">Nivel Champion+</span>
+                            <button class="btn-store" disabled><i class="fas fa-lock"></i> Champion</button>
+                        </div>
+                        <div class="store-item locked">
+                            <div class="store-preview">👑</div>
+                            <span class="store-name">Insignia Legend</span>
+                            <span class="store-desc">Solo Legends</span>
+                            <button class="btn-store" disabled><i class="fas fa-lock"></i> Legend</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── TAB: ICONOS ───────────────────────────────── -->
+                <div class="store-tab-content" id="store-tab-iconos">
+                    <div class="store-grid">
+                        <div class="store-item">
+                            <div class="store-preview">🧢</div>
+                            <span class="store-name">Icono Fan</span>
+                            <span class="store-desc">El aficionado</span>
+                            <button class="btn-store" id="btn-fan_icon" onclick="buyItem('fan_icon',150,'icon','fan-icon')"><i class="fas fa-coins"></i> 150</button>
+                        </div>
+                        <div class="store-item">
+                            <div class="store-preview">🎙️</div>
+                            <span class="store-name">Icono Comentarista</span>
+                            <span class="store-desc">La voz del partido</span>
+                            <button class="btn-store" id="btn-comm_icon" onclick="buyItem('comm_icon',200,'icon','comm-icon')"><i class="fas fa-coins"></i> 200</button>
+                        </div>
+                        <div class="store-item">
+                            <div class="store-preview">🗺️</div>
+                            <span class="store-name">Icono Guía</span>
+                            <span class="store-desc">Experto en la ciudad</span>
+                            <button class="btn-store" id="btn-guide_icon" onclick="buyItem('guide_icon',250,'icon','guide-icon')"><i class="fas fa-coins"></i> 250</button>
+                        </div>
+                        <div class="store-item">
+                            <div class="store-preview">🦅</div>
+                            <span class="store-name">Icono Águila</span>
+                            <span class="store-desc">Símbolo de México</span>
+                            <button class="btn-store" id="btn-eagle_icon" onclick="buyItem('eagle_icon',400,'icon','eagle-icon')"><i class="fas fa-coins"></i> 400</button>
+                        </div>
+                        <div class="store-item">
+                            <div class="store-preview">⚽</div>
+                            <span class="store-name">Icono Balón FIFA</span>
+                            <span class="store-desc">El clásico del mundial</span>
+                            <button class="btn-store" id="btn-ball_icon" onclick="buyItem('ball_icon',300,'icon','ball-icon')"><i class="fas fa-coins"></i> 300</button>
+                        </div>
+                        <div class="store-item locked">
+                            <div class="store-preview">🌟</div>
+                            <span class="store-name">Icono Estrella</span>
+                            <span class="store-desc">Nivel Elite+</span>
+                            <button class="btn-store" disabled><i class="fas fa-lock"></i> Elite</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── TAB: BURBUJAS ─────────────────────────────── -->
+                <div class="store-tab-content" id="store-tab-burbujas">
+                    <div class="store-grid">
+                        <div class="store-item">
+                            <div class="store-preview" style="background:linear-gradient(135deg,#00C9A7,#5B21B6);border-radius:10px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:1.4rem;"><i class="fas fa-comment-dots"></i></div>
+                            <span class="store-name">Burbuja Cielo Neón</span>
+                            <span class="store-desc">Teal → Violeta</span>
+                            <button class="btn-store" id="btn-neon_sky" onclick="buyItem('neon_sky',300,'msg-bg','bg-neon-sky')"><i class="fas fa-coins"></i> 300</button>
+                        </div>
+                        <div class="store-item">
+                            <div class="store-preview" style="background:linear-gradient(135deg,#0EA5E9,#10B981);border-radius:10px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:1.4rem;"><i class="fas fa-comment-dots"></i></div>
+                            <span class="store-name">Aurora Boreal</span>
+                            <span class="store-desc">Azul cielo → Verde</span>
+                            <button class="btn-store" id="btn-aurora_boreal" onclick="buyItem('aurora_boreal',450,'msg-bg','bg-aurora')"><i class="fas fa-coins"></i> 450</button>
+                        </div>
+                        <div class="store-item">
+                            <div class="store-preview" style="background:linear-gradient(135deg,#F0C040,#E8A020);border-radius:10px;display:flex;align-items:center;justify-content:center;color:#0A0E1A;font-size:1.4rem;"><i class="fas fa-comment-dots"></i></div>
+                            <span class="store-name">Burbuja Gold</span>
+                            <span class="store-desc">Dorado FIFA</span>
+                            <button class="btn-store" id="btn-gold_bubble" onclick="buyItem('gold_bubble',400,'msg-bg','bg-gold-bubble')"><i class="fas fa-coins"></i> 400</button>
+                        </div>
+                        <div class="store-item">
+                            <div class="store-preview" style="background:linear-gradient(135deg,#6B1B8A,#FF6B35);border-radius:10px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:1.4rem;"><i class="fas fa-comment-dots"></i></div>
+                            <span class="store-name">Burbuja Sunset</span>
+                            <span class="store-desc">Púrpura → Naranja</span>
+                            <button class="btn-store" id="btn-sunset_bubble" onclick="buyItem('sunset_bubble',380,'msg-bg','bg-sunset-bubble')"><i class="fas fa-coins"></i> 380</button>
+                        </div>
+                        <div class="store-item locked">
+                            <div class="store-preview" style="background:linear-gradient(135deg,#1a2040,#F0C040);border-radius:10px;display:flex;align-items:center;justify-content:center;color:#F0C040;font-size:1.4rem;"><i class="fas fa-comment-dots"></i></div>
+                            <span class="store-name">Burbuja Legend</span>
+                            <span class="store-desc">Solo para Legends</span>
+                            <button class="btn-store" disabled><i class="fas fa-lock"></i> Legend</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── TAB: EMOJIS ───────────────────────────────── -->
+                <div class="store-tab-content" id="store-tab-emojis">
+                    <div id="emoji-store-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:12px;padding:4px 0;"></div>
+                </div>
+
+            </div><!-- /store-section -->
+        </section>
+    </main>
+</div>
+
+<!-- ══════════════════ MODALS ══════════════════════════ -->
+
+<!-- PROFILE MODAL -->
+<div class="modal-overlay" id="profile-modal" onclick="closeModalOutside(event,'profile-modal')">
+    <div class="modal modal-wide">
+        <div class="modal-header">
+            <h3><i class="fas fa-user-circle"></i> Mi Perfil</h3>
+            <button class="modal-close" onclick="closeModal('profile-modal')"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body">
+            <div class="profile-avatar-section">
+                <div class="profile-avatar-wrap">
+                    <img id="profile-avatar-img" src="https://api.dicebear.com/7.x/adventurer/svg?seed=tourist" alt="Avatar">
+                    <button class="change-avatar-btn" onclick="document.getElementById('avatar-input').click()"><i class="fas fa-camera"></i></button>
+                    <input type="file" id="avatar-input" accept="image/*" style="display:none" onchange="changeAvatar(event)">
+                </div>
+                <div class="profile-avatar-info">
+                    <p class="profile-name-display" id="profile-name-display">Turista 1</p>
+                    <p class="profile-email-display" id="profile-email-display"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="b6c2c3c4dfc5c2d7f6d2d3dbd998d5d9db">[email&#160;protected]</a></p>
+                    <div class="profile-level-tag">
+                        <i class="fas fa-star"></i> <span id="profile-level-tag">Explorer</span>
+                        &nbsp;·&nbsp;<i class="fas fa-coins"></i> <span id="profile-pts-tag">1500 pts</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="profile-tabs">
+                <button class="profile-tab-btn active" onclick="switchProfileTab('info',this)"><i class="fas fa-id-card"></i> Información</button>
+                <button class="profile-tab-btn" onclick="switchProfileTab('security',this)"><i class="fas fa-shield-alt"></i> Seguridad</button>
+                <button class="profile-tab-btn" onclick="switchProfileTab('notifications',this)"><i class="fas fa-bell"></i> Notificaciones</button>
+            </div>
+
+            <!-- INFO TAB -->
+            <div class="profile-tab-content active" id="ptab-info">
+                <div class="profile-form-grid">
+                    <div class="form-group-m">
+                        <label>Nombre Completo</label>
+                        <div class="form-input-wrap-m"><i class="fas fa-user"></i><input type="text" id="prof-name" placeholder="Tu nombre" value="Turista 1"></div>
+                    </div>
+                    <div class="form-group-m">
+                        <label>Correo Electrónico</label>
+                        <div class="form-input-wrap-m"><i class="fas fa-envelope"></i><input type="email" id="prof-email" placeholder="tu@email.com" value="turista@demo.com"></div>
+                    </div>
+                    <div class="form-group-m">
+                        <label>Nacionalidad</label>
+                        <div class="form-input-wrap-m">
+                            <i class="fas fa-globe"></i>
+                            <select id="prof-country">
+                                <option value="🇲🇽 México" selected>🇲🇽 México</option>
+                                <option value="🇺🇸 Estados Unidos">🇺🇸 Estados Unidos</option>
+                                <option value="🇨🇦 Canadá">🇨🇦 Canadá</option>
+                                <option value="🇦🇷 Argentina">🇦🇷 Argentina</option>
+                                <option value="🇧🇷 Brasil">🇧🇷 Brasil</option>
+                                <option value="🇫🇷 Francia">🇫🇷 Francia</option>
+                                <option value="🇩🇪 Alemania">🇩🇪 Alemania</option>
+                                <option value="🇯🇵 Japón">🇯🇵 Japón</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group-m">
+                        <label>Estado visible</label>
+                        <div class="form-input-wrap-m">
+                            <i class="fas fa-circle" id="status-icon-prof" style="color:var(--success)"></i>
+                            <select id="prof-status" onchange="changeMyStatus(this.value)">
+                                <option value="online">🟢 En línea</option>
+                                <option value="away">🟡 Ausente</option>
+                                <option value="busy">🔴 Ocupado</option>
+                                <option value="offline">⚫ Invisible</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group-m full-width">
+                        <label>Biografía / Nota de viaje</label>
+                        <textarea id="prof-bio" placeholder="Cuéntale al grupo algo sobre ti..." rows="3"></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SECURITY TAB -->
+            <div class="profile-tab-content" id="ptab-security" style="display:none">
+                <div class="security-info-card"><i class="fas fa-info-circle"></i><span>Necesitas tu contraseña actual para realizar cambios.</span></div>
+                <div class="form-group-m">
+                    <label>Contraseña Actual</label>
+                    <div class="form-input-wrap-m"><i class="fas fa-lock"></i><input type="password" id="pass-current" placeholder="••••••••"></div>
+                </div>
+                <div class="form-group-m">
+                    <label>Nueva Contraseña</label>
+                    <div class="form-input-wrap-m"><i class="fas fa-lock"></i><input type="password" id="pass-new" placeholder="Mín. 8 caracteres" oninput="checkPassStrength(this.value)"></div>
+                    <div class="strength-bar" style="margin-top:8px;">
+                        <div class="strength-seg" id="ps1"></div><div class="strength-seg" id="ps2"></div>
+                        <div class="strength-seg" id="ps3"></div><div class="strength-seg" id="ps4"></div>
+                    </div>
+                </div>
+                <div class="form-group-m">
+                    <label>Confirmar Nueva Contraseña</label>
+                    <div class="form-input-wrap-m"><i class="fas fa-lock"></i><input type="password" id="pass-confirm" placeholder="Repetir contraseña"></div>
+                </div>
+                <button class="btn-change-pass" onclick="changePassword()"><i class="fas fa-key"></i> Actualizar Contraseña</button>
+            </div>
+
+            <!-- NOTIFICATIONS TAB -->
+            <div class="profile-tab-content" id="ptab-notifications" style="display:none">
+                <div class="notif-settings">
+                    <div class="notif-row"><div><strong>Mensajes nuevos</strong><p>Alertas de mensajes en chats</p></div><label class="switch"><input type="checkbox" id="notif-msgs" checked><span class="slider round"></span></label></div>
+                    <div class="notif-row"><div><strong>Tareas asignadas</strong><p>Notificar al ser asignado</p></div><label class="switch"><input type="checkbox" id="notif-tasks" checked><span class="slider round"></span></label></div>
+                    <div class="notif-row"><div><strong>Recompensas</strong><p>Al ganar puntos o insignias</p></div><label class="switch"><input type="checkbox" id="notif-rewards" checked><span class="slider round"></span></label></div>
+                    <div class="notif-row"><div><strong>Videollamadas entrantes</strong><p>Alertar cuando te llamen</p></div><label class="switch"><input type="checkbox" id="notif-vc" checked><span class="slider round"></span></label></div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-cancel" onclick="closeModal('profile-modal')">Cancelar</button>
+            <button class="btn-confirm" onclick="saveProfile()"><i class="fas fa-save"></i> Guardar cambios</button>
+        </div>
+    </div>
+</div>
+
+<!-- EMAIL MODAL -->
+<div class="modal-overlay" id="email-modal" onclick="closeModalOutside(event,'email-modal')">
+    <div class="modal modal-wide">
+        <div class="modal-header">
+            <h3><i class="fas fa-envelope"></i> Enviar Correo Electrónico</h3>
+            <button class="modal-close" onclick="closeModal('email-modal')"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group-m">
+                <label>Para</label>
+                <div class="form-input-wrap-m">
+                    <i class="fas fa-user"></i>
+                    <select id="email-to" onchange="toggleCustomEmail(this.value)">
+                        <option value="">Selecciona un usuario...</option>
+                        <option value="carlos@turistahub.com">Guía Carlos &lt;<template class="__cf_email__" data-cfemail="284b495a44475b685c5d5a415b5c49405d4a064b4745">[email&#160;protected]</template>&gt;</option>
+                        <option value="maria@turistahub.com">María González &lt;<template class="__cf_email__" data-cfemail="d0bdb1a2b9b190a4a5a2b9a3a4b1b8a5b2feb3bfbd">[email&#160;protected]</template>&gt;</option>
+                        <option value="turista23@turistahub.com">Turista 23 &lt;<template class="__cf_email__" data-cfemail="cabebfb8a3b9beabf8f98abebfb8a3b9beaba2bfa8e4a9a5a7">[email&#160;protected]</template>&gt;</option>
+                        <option value="custom">Otro correo (escribir)...</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-group-m" id="email-custom-wrap" style="display:none">
+                <label>Correo personalizado</label>
+                <div class="form-input-wrap-m"><i class="fas fa-at"></i><input type="email" id="email-to-custom" placeholder="correo@ejemplo.com"></div>
+            </div>
+            <div class="form-group-m">
+                <label>Asunto</label>
+                <div class="form-input-wrap-m"><i class="fas fa-heading"></i><input type="text" id="email-subject" placeholder="Asunto del mensaje..."></div>
+            </div>
+            <div class="form-group-m">
+                <label>Mensaje</label>
+                <textarea id="email-body" rows="5" placeholder="Escribe tu mensaje aquí..."></textarea>
+            </div>
+            <div class="email-templates">
+                <p class="tmpl-label">Plantillas rápidas</p>
+                <div class="email-template-btns">
+                    <button onclick="applyTemplate('meet')">📍 Punto de encuentro</button>
+                    <button onclick="applyTemplate('ticket')">🎟️ Info de boleto</button>
+                    <button onclick="applyTemplate('welcome')">👋 Bienvenida</button>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-cancel" onclick="closeModal('email-modal')">Cancelar</button>
+            <button class="btn-confirm" onclick="sendEmail()"><i class="fas fa-paper-plane"></i> Enviar correo</button>
+        </div>
+    </div>
+</div>
+
+<!-- CREATE GROUP MODAL -->
+<div class="modal-overlay" id="create-group-modal" onclick="closeModalOutside(event,'create-group-modal')">
+    <div class="modal">
+        <div class="modal-header">
+            <h3><i class="fas fa-users"></i> Crear Nuevo Grupo</h3>
+            <button class="modal-close" onclick="closeModal('create-group-modal')"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group-m">
+                <label>Nombre del Grupo</label>
+                <input type="text" id="group-name-input" placeholder="Ej: Tour Macroplaza 🏙️" maxlength="40" class="simple-input">
+            </div>
+            <div class="form-group-m">
+                <label>Integrantes <span class="req-note">(mínimo 2)</span></label>
+                <div class="user-selector">
+                    <div class="user-check-item"><img src="https://api.dicebear.com/7.x/adventurer/svg?seed=t23" alt=""><div><strong>Turista 23</strong><span class="online-tag">🟢 En línea</span></div><input type="checkbox" value="turista23"></div>
+                    <div class="user-check-item"><img src="https://api.dicebear.com/7.x/adventurer/svg?seed=carlos" alt=""><div><strong>Guía Carlos</strong><span class="offline-tag">🔴 Desconectado</span></div><input type="checkbox" value="guia_carlos"></div>
+                    <div class="user-check-item"><img src="https://api.dicebear.com/7.x/adventurer/svg?seed=maria" alt=""><div><strong>María González</strong><span class="online-tag">🟢 En línea</span></div><input type="checkbox" value="maria_mx"></div>
+                    <div class="user-check-item"><img src="https://api.dicebear.com/7.x/adventurer/svg?seed=fanarg" alt=""><div><strong>FanArg Lionel</strong><span class="online-tag">🟢 En línea</span></div><input type="checkbox" value="fan_arg"></div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-cancel" onclick="closeModal('create-group-modal')">Cancelar</button>
+            <button class="btn-confirm" onclick="createGroup()"><i class="fas fa-plus"></i> Crear Grupo</button>
+        </div>
+    </div>
+</div>
+
+<!-- VIDEO CALL -->
+<div class="modal-overlay videocall-overlay" id="videocall-modal" onclick="closeModalOutside(event,'videocall-modal')">
+    <div class="videocall-ui">
+
+        <!-- Video remoto -->
+        <div class="remote-video">
+            <video id="remote-stream" autoplay playsinline
+                   style="width:100%;height:100%;object-fit:cover;display:none;"></video>
+            <div class="video-placeholder" id="vc-placeholder"
+                 style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;height:100%;gap:0;">
+                <img src="https://api.dicebear.com/7.x/adventurer/svg?seed=carlos"
+                     alt="" class="vc-avatar" id="vc-remote-avatar"
+                     style="width:90px;height:90px;border-radius:50%;border:3px solid var(--gold);object-fit:cover;box-shadow:0 0 0 6px rgba(240,192,64,0.15);">
+                <p id="vc-remote-name"
+                   style="margin-top:14px;font-size:1rem;font-weight:700;color:#E8EDF5;text-align:center;">Contacto</p>
+                <div class="vc-connecting" id="vc-connecting"
+                     style="margin-top:10px;display:flex;flex-direction:column;align-items:center;gap:6px;">
+                    <div class="vc-dots"><span></span><span></span><span></span></div>
+                    <p style="font-size:0.78rem;color:var(--muted);">Conectando...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Video local (tú) -->
+        <div class="local-video" style="position:relative;">
+            <video id="local-stream" autoplay muted playsinline
+                   style="width:100%;height:100%;object-fit:cover;display:block;"></video>
+            <canvas id="filter-canvas"
+                    style="position:absolute;top:0;left:0;width:100%;height:100%;
+                           object-fit:cover;display:none;border-radius:inherit;
+                           pointer-events:none;z-index:2;"></canvas>
+            <div class="local-overlay" style="z-index:3;">Tú</div>
+        </div>
+
+        <!-- Badge filtro activo -->
+        <div id="filter-badge"
+             style="display:none;position:absolute;top:14px;right:14px;
+                    background:rgba(0,201,167,0.15);border:1px solid rgba(0,201,167,0.4);
+                    color:#00C9A7;font-size:0.73rem;font-weight:600;padding:4px 12px;
+                    border-radius:20px;backdrop-filter:blur(8px);z-index:20;
+                    align-items:center;gap:6px;"></div>
+
+        <!-- Info bar -->
+        <div class="vc-info-bar">
+            <span id="vc-caller-name">Llamando...</span>
+            <span class="vc-timer" id="vc-timer">00:00</span>
+        </div>
+
+        <!-- Panel de filtros -->
+        <div id="filter-panel"
+             style="display:none;position:absolute;bottom:86px;left:50%;
+                    transform:translateX(-50%);min-width:360px;
+                    background:rgba(8,12,22,0.96);border:1px solid rgba(255,255,255,0.1);
+                    border-radius:18px;padding:18px 20px;backdrop-filter:blur(16px);
+                    z-index:40;box-shadow:0 -8px 40px rgba(0,0,0,0.5);">
+            <p style="font-size:0.7rem;color:#8896B0;text-transform:uppercase;letter-spacing:1.8px;margin-bottom:14px;font-weight:600;">✨ Filtros de cámara</p>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:16px;">
+                <button class="filter-btn active" data-filter="none" onclick="setVCFilter('none')"><i class="fas fa-xmark"></i> Normal</button>
+                <button class="filter-btn" data-filter="blur" onclick="setVCFilter('blur')"><i class="fas fa-droplet"></i> Desenfoque</button>
+                <button class="filter-btn" data-filter="gradient" onclick="setVCFilter('gradient')"><i class="fas fa-palette"></i> Gradiente</button>
+                <button class="filter-btn" data-filter="bw" onclick="setVCFilter('bw')"><i class="fas fa-circle-half-stroke"></i> B&amp;N</button>
+                <button class="filter-btn" data-filter="pixelate" onclick="setVCFilter('pixelate')"><i class="fas fa-border-all"></i> Pixelado</button>
+            </div>
+            <div style="border-top:1px solid rgba(255,255,255,0.07);padding-top:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                <span style="font-size:0.74rem;color:#8896B0;white-space:nowrap;">Fondo gradiente:</span>
+                <div id="gradient-preview" onclick="cycleGradient()" title="Cambiar fondo"
+                     style="width:30px;height:30px;border-radius:8px;cursor:pointer;flex-shrink:0;
+                            background:linear-gradient(135deg,#0A0E1A,#F0C040);
+                            border:1px solid rgba(255,255,255,0.2);transition:background 0.4s;"></div>
+                <button onclick="cycleGradient()"
+                        style="background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);
+                               color:#E8EDF5;border-radius:8px;padding:5px 12px;cursor:pointer;
+                               font-size:0.78rem;font-family:inherit;transition:all 0.2s;
+                               display:flex;align-items:center;gap:6px;">
+                    <i class="fas fa-rotate"></i> Cambiar
+                </button>
+                <span id="gradient-name" style="font-size:0.75rem;color:#00C9A7;font-weight:600;">FIFA Gold</span>
+            </div>
+        </div>
+
+        <!-- Controles -->
+        <div class="vc-controls">
+            <button class="vc-btn" id="btn-mic"    onclick="toggleMic(this)"     title="Micrófono"><i class="fas fa-microphone"></i></button>
+            <button class="vc-btn" id="btn-cam"    onclick="toggleCam(this)"     title="Cámara"><i class="fas fa-video"></i></button>
+            <button class="vc-btn" id="btn-screen" onclick="toggleScreenShare()" title="Compartir pantalla"><i class="fas fa-desktop"></i></button>
+            <button class="vc-btn" id="btn-filter" onclick="toggleFilterPanel()" title="Filtros"><i class="fas fa-wand-magic-sparkles"></i></button>
+            <button class="vc-btn end-call"         onclick="endCall()"           title="Colgar"><i class="fas fa-phone-slash"></i></button>
+            <button class="vc-btn"                  onclick="toggleFullscreen()"  title="Pantalla completa"><i class="fas fa-expand"></i></button>
+        </div>
+
+    </div>
+</div>
+
+<!-- LOCATION MODAL -->
+<div class="modal-overlay" id="location-modal" onclick="closeModalOutside(event,'location-modal')">
+    <div class="modal">
+        <div class="modal-header"><h3><i class="fas fa-map-marker-alt"></i> Compartir Ubicación</h3><button class="modal-close" onclick="closeModal('location-modal')"><i class="fas fa-times"></i></button></div>
+        <div class="modal-body" style="text-align:center;padding:24px;">
+            <div id="loc-loading" style="padding:20px;"><i class="fas fa-spinner fa-spin" style="font-size:2rem;color:var(--teal)"></i><p style="margin-top:12px;color:var(--muted)">Obteniendo tu ubicación...</p></div>
+            <div id="loc-result" style="display:none;">
+                <div class="loc-map-preview"><i class="fas fa-map-marked-alt" style="font-size:3rem;color:var(--gold)"></i></div>
+                <p id="loc-address" style="margin:12px 0;font-weight:600;"></p>
+                <a id="loc-link" href="#" target="_blank" class="loc-link-btn"><i class="fas fa-external-link-alt"></i> Abrir en Google Maps</a>
+            </div>
+        </div>
+        <div class="modal-footer"><button class="btn-cancel" onclick="closeModal('location-modal')">Cancelar</button><button class="btn-confirm" id="send-location-btn" onclick="sendLocation()" disabled><i class="fas fa-paper-plane"></i> Enviar al chat</button></div>
+    </div>
+</div>
+
+<!-- FILE MODAL -->
+<div class="modal-overlay" id="file-modal" onclick="closeModalOutside(event,'file-modal')">
+    <div class="modal">
+        <div class="modal-header"><h3><i class="fas fa-paperclip"></i> Adjuntar Archivo</h3><button class="modal-close" onclick="closeModal('file-modal')"><i class="fas fa-times"></i></button></div>
+        <div class="modal-body">
+            <div class="file-drop-area" id="file-drop" ondragover="event.preventDefault()" ondrop="handleDrop(event)">
+                <i class="fas fa-cloud-upload-alt"></i><p>Arrastra un archivo o</p>
+                <button onclick="document.getElementById('file-input2').click()">Seleccionar archivo</button>
+                <input type="file" id="file-input2" style="display:none" accept="image/*,.pdf,.txt" onchange="previewFile(event)">
+                <p class="file-types">Imágenes, PDF, TXT · Máx 10MB</p>
+            </div>
+            <div id="file-preview-area" style="display:none;">
+                <img id="img-preview" src="" alt="" style="max-width:100%;border-radius:8px;display:none;margin-bottom:8px;">
+                <div class="file-info-row" id="file-info-row" style="display:none;"><i class="fas fa-file-alt fa-2x" style="color:var(--teal)"></i><div><strong id="file-name2"></strong><br><small id="file-size"></small></div></div>
+                <input type="text" id="file-caption" placeholder="Caption opcional..." class="simple-input" style="margin-top:12px;">
+            </div>
+        </div>
+        <div class="modal-footer"><button class="btn-cancel" onclick="closeModal('file-modal')">Cancelar</button><button class="btn-confirm" id="send-file-btn" onclick="sendFile()" disabled><i class="fas fa-paper-plane"></i> Enviar</button></div>
+    </div>
+</div>
+
+<!-- VIEW LOC MODAL -->
+<div class="modal-overlay" id="view-loc-modal" onclick="closeModalOutside(event,'view-loc-modal')">
+    <div class="modal">
+        <div class="modal-header"><h3><i class="fas fa-map-marker-alt"></i> Ubicación compartida</h3><button class="modal-close" onclick="closeModal('view-loc-modal')"><i class="fas fa-times"></i></button></div>
+        <div class="modal-body" style="text-align:center;padding:24px;">
+            <div style="background:rgba(0,201,167,0.1);border:1px solid rgba(0,201,167,0.2);border-radius:12px;padding:20px;margin-bottom:16px;">
+                <i class="fas fa-map-marked-alt" style="font-size:3rem;color:var(--teal);display:block;margin-bottom:12px;"></i>
+                <strong>Metro Estadio, Línea 2</strong><br><small style="color:var(--muted)">Monterrey, N.L.</small>
+            </div>
+            <p style="margin:10px 0;font-size:.85rem;color:var(--muted)">Haz clic para abrir en Google Maps</p>
+            <a href="https://maps.google.com?q=25.6866,-100.3161" target="_blank" class="loc-link-btn">
+                <i class="fas fa-external-link-alt"></i> Abrir en Google Maps
+            </a>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-cancel" onclick="closeModal('view-loc-modal')">Cerrar</button>
+        </div>
+    </div>
+</div>
+
+<!-- TOAST CONTAINER -->
+<div class="toast-container" id="toast-container"></div>
+
+<!-- SCRIPTS del servidor y Firestore -->
+<script src="server-config.js"></script>
+<script type="module" src="firestore_integration.js"></script>
+<!--Socket.io-->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.1/socket.io.min.js"></script>
+<!--PeerJS para videollamadas reales WebRTC-->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
+<script src="videocall_enhanced.js"></script>
+<!--app principal-->
+<script src="app.js"></script>
+
+ <script src="emoji store.js"></script>
+</body>
+
+<!-- Fondo animado — igual al login -->
+<div class="app-bg-glow"></div>
+<div class="app-hex-grid"></div>
+<div class="app-ball-decor app-ball-1"></div>
+<div class="app-ball-decor app-ball-2"></div>
+<div class="app-ball-decor app-ball-3"></div>
+<div class="app-ball-decor app-ball-4"></div>
+
+<!--
+================================================================
+  IMPORTANTE sobre type="module":
+  El script de Firestore usa "type=module" porque usa import/export
+  de ES6. Esto significa que se carga de forma asíncrona.
+  Por eso app.js siempre verifica: if (window.db_saveMessage) {...}
+  antes de usar las funciones, como fallback seguro.
+================================================================
+-->
+
+</html>
