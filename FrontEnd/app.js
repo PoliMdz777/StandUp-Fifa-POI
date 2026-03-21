@@ -1315,61 +1315,84 @@ window.logoutApp = logoutApp;
 
 async function loadRealUsers() {
     try {
-        const res   = await fetch((window.__FIFA_SERVER__ || 'http://localhost:3000') + '/api/users');
-        const users = await res.json();
-        const list  = document.getElementById('contacts');
+        // Esperar a que firestore_integration.js cargue
+        let intentos = 0;
+        while (!window.__FIRESTORE_READY__ && intentos < 20) {
+            await new Promise(r => setTimeout(r, 300));
+            intentos++;
+        }
 
-        //-- 1 Agregar a la lista de contactos
-        users.forEach(u => {
-            // No mostrar al usuario actual ni usuarios ya listados
-            if (u.name === currentUser.name) return;
-            if (document.querySelector(`[data-chat-id="${u.name}"]`)) return;
+        // Leer usuarios directo de Firestore (sin necesitar serviceAccountKey)
+        const { getFirestore, collection, getDocs } = await import(
+            'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+        );
+        const { initializeApp, getApps } = await import(
+            'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js'
+        );
 
-            const li = document.createElement('li');
-            li.className = 'contact-item';
-            li.dataset.chatId = u.name;
-            li.onclick = () => selectChat('private', u.name, u.name, 'user', li);
-            li.innerHTML = `
-                <div class="contact-avatar">
-                    <img src="${u.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${u.name}`}" alt="">
-                    <span class="status-indicator ${u.status || 'offline'}" id="status-${u.name}"></span>
-                </div>
-                <div class="contact-info">
-                    <span class="contact-name">${escHtml(u.name)}</span>
-                    <span class="contact-preview" id="preview-${u.name}">${u.country || ''}  </span>
-                </div>
-                <span class="unread-badge" id="badge-${u.name}" style="display:none">0</span>`;
-            list.appendChild(li);
-        });
+        const firebaseConfig = {
+            apiKey: "AIzaSyBQCxLixqM8qDquL3-xkMjkyupBlcgl2ek",
+            authDomain: "standup-fifa-5f423.firebaseapp.com",
+            projectId: "standup-fifa-5f423",
+            storageBucket: "standup-fifa-5f423.appspot.com",
+            messagingSenderId: "823333890415",
+            appId: "1:112092859394:web:acaf19a3ed635667d3ab1b"
+        };
 
-        // ── 2. Poblar el modal "Crear Grupo" con usuarios reales ─
+        const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+        const db  = getFirestore(app);
+        const snap = await getDocs(collection(db, 'users'));
+        const users = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+        const list = document.getElementById('contacts');
         const selector = document.querySelector('.user-selector');
-        if (selector) {
-            selector.innerHTML = ''; // limpiar usuarios hardcodeados
-            users.forEach(u => {
-                if (u.name === currentUser.name) return;
+        if (selector) selector.innerHTML = '';
+
+        users.forEach(u => {
+            if (u.name === currentUser.name) return;
+
+            // ── Agregar a lista de contactos ──────────────
+            if (!document.querySelector(`[data-chat-id="${u.name}"]`)) {
+                const li = document.createElement('li');
+                li.className = 'contact-item';
+                li.dataset.chatId = u.name;
+                li.onclick = () => selectChat('private', u.name, u.name, 'user', li);
+                li.innerHTML = `
+                    <div class="contact-avatar">
+                        <img src="${u.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${u.name}`}" alt="">
+                        <span class="status-indicator ${u.status || 'offline'}" id="status-${u.name}"></span>
+                    </div>
+                    <div class="contact-info">
+                        <span class="contact-name">${escHtml(u.name)}</span>
+                        <span class="contact-preview" id="preview-${u.name}">${escHtml(u.country || '')}</span>
+                    </div>
+                    <span class="unread-badge" id="badge-${u.name}" style="display:none">0</span>`;
+                list.appendChild(li);
+            }
+
+            // ── Agregar al modal "Crear Grupo" ────────────
+            if (selector) {
                 const item = document.createElement('div');
                 item.className = 'user-check-item';
-                const statusColor = u.status === 'online' ? 'online-tag' : 'offline-tag';
-                const statusLabel = u.status === 'online' ? '🟢 En línea' : '🔴 Desconectado';
                 item.innerHTML = `
                     <img src="${u.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${u.name}`}" alt="">
                     <div>
                         <strong>${escHtml(u.name)}</strong>
-                        <span class="${statusColor}">${statusLabel}</span>
+                        <span class="${u.status === 'online' ? 'online-tag' : 'offline-tag'}">
+                            ${u.status === 'online' ? '🟢 En línea' : '🔴 Desconectado'}
+                        </span>
                     </div>
                     <input type="checkbox" value="${escHtml(u.name)}">`;
                 selector.appendChild(item);
-            });
-
-            // Si no hay usuarios registrados aún, mostrar mensaje
-            if (selector.children.length === 0) {
-                selector.innerHTML = '<p style="color:var(--muted);font-size:.82rem;padding:10px">No hay otros usuarios registrados aún.</p>';
             }
+        });
+
+        if (selector && selector.children.length === 0) {
+            selector.innerHTML = '<p style="color:var(--muted);font-size:.82rem;padding:10px">No hay otros usuarios registrados aún.</p>';
         }
 
     } catch(e) {
-        console.warn('No se pudieron cargar usuarios:', e);
+        console.warn('No se pudieron cargar usuarios desde Firestore:', e);
     }
 }
 window.loadRealUsers = loadRealUsers;
