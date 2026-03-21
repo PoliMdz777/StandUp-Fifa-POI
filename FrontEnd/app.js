@@ -148,7 +148,9 @@ let socket = null;
 try {
 //    socket = io('http://localhost:3000', { reconnectionAttempts: 5 });
 //AHORA EL CLIENTE USA LA URL DE SERVER-config.JS
-        socket = io(window.__FIFA_SERVER__ || 'http://localhost:3000', {
+      //  socket = io(window.__FIFA_SERVER__ || 'http://localhost:3000', {
+            const _serverUrl = window.__FIFA_SERVER__ || 'https://standup-fifa-poi.onrender.com';
+socket = io(_serverUrl, {
             reconnectionAttempts: 5,
             transports: ['websocket', 'polling']
         });
