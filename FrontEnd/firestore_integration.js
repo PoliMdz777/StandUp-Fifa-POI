@@ -21,10 +21,10 @@ import {
 // ── Tus credenciales de Firebase (ya las tienes correctas) ───────
 const firebaseConfig = {
     apiKey:            "AIzaSyBQCxLixqM8qDquL3-xkMjkyupBlcgl2ek",
-    authDomain:        "standup-fifa.firebaseapp.com",
-    projectId:         "standup-fifa",
-    storageBucket:     "standup-fifa.firebasestorage.app",
-    messagingSenderId: "112092859394",
+    authDomain:        "standup-fifa-5f423.firebaseapp.com",
+    projectId:         "standup-fifa-5f423",                  // el bueno
+    storageBucket:     "standup-fifa-5f423.appspot.com",
+    messagingSenderId: "823333890415",
     appId:             "1:112092859394:web:acaf19a3ed635667d3ab1b"
 };
 
