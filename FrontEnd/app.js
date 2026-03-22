@@ -145,15 +145,22 @@ function hydrateUI() {
 
 // ─── SOCKET CONNECTION ───────────────────────────────────
 let socket = null;
+// Despertar Render antes de conectar Socket.io
+fetch('https://standup-fifa-poi.onrender.com/api/users')
+    .then(() => console.log('✅ Render despierto'))
+    .catch(() => console.warn('⚠️ Render no responde'));
+
 try {
 //    socket = io('http://localhost:3000', { reconnectionAttempts: 5 });
 //AHORA EL CLIENTE USA LA URL DE SERVER-config.JS
       //  socket = io(window.__FIFA_SERVER__ || 'http://localhost:3000', {
-            const _serverUrl = window.__FIFA_SERVER__ || 'https://standup-fifa-poi.onrender.com';
+         const _serverUrl = 'https://standup-fifa-poi.onrender.com';
 socket = io(_serverUrl, {
-            reconnectionAttempts: 5,
-            transports: ['websocket', 'polling']
-        });
+    reconnectionAttempts: 5,
+    transports: ['polling', 'websocket'],  // polling primero — más compatible con Render
+    timeout: 20000,
+    forceNew: true
+});
 
     socket.on('connect', () => {
         console.log('✅ Socket conectado:', socket.id);
@@ -1271,6 +1278,8 @@ document.addEventListener('DOMContentLoaded', () => {
     updatePtsDisplay();
     updateStoreButtons();
 
+    setTimeout(loadRealUsers, 1500); // espera que Firestore cargue
+     
     // Listeners seguros: el DOM ya existe aquí
     const encToggle = document.getElementById('encryption-toggle');
     if (encToggle) {
