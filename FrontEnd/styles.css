@@ -1511,3 +1511,20 @@ textarea::placeholder { color: var(--muted); }
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
 }
+
+/* Corrección para que la videollamada no envíe pantalla negra al otro usuario */
+#filter-canvas, #local-stream {
+    /* En lugar de usar display: none en el JS, lo ocultamos así si es necesario */
+    opacity: 1 !important; 
+    visibility: visible !important;
+}
+
+/* Evitar que el canvas detenga el flujo WebRTC */
+canvas.video-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0.01;
+    pointer-events: none;
+    z-index: -1;
+}
