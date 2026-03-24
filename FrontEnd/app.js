@@ -145,22 +145,15 @@ function hydrateUI() {
 
 // ─── SOCKET CONNECTION ───────────────────────────────────
 let socket = null;
-// Despertar Render antes de conectar Socket.io
-fetch('https://standup-fifa-poi.onrender.com/api/users')
-    .then(() => console.log('✅ Render despierto'))
-    .catch(() => console.warn('⚠️ Render no responde'));
-
 try {
 //    socket = io('http://localhost:3000', { reconnectionAttempts: 5 });
 //AHORA EL CLIENTE USA LA URL DE SERVER-config.JS
-      //  socket = io(window.__FIFA_SERVER__ || 'http://localhost:3000', {
-         const _serverUrl = 'https://standup-fifa-poi.onrender.com';
-socket = io(_serverUrl, {
-    reconnectionAttempts: 5,
-    transports: ['polling', 'websocket'],  // polling primero — más compatible con Render
-    timeout: 20000,
-    forceNew: true
-});
+        //socket = io(window.__FIFA_SERVER__ || 'http://localhost:3000', 
+            const _serverUrl = window.__FIFA_SERVER__ || 'https://standup-fifa-poi.onrender.com';
+socket = io(_serverUrl,{
+            reconnectionAttempts: 5,
+            transports: ['websocket', 'polling']
+        });
 
     socket.on('connect', () => {
         console.log('✅ Socket conectado:', socket.id);
@@ -238,16 +231,33 @@ socket = io(_serverUrl, {
         }
     });
 
-    socket.on('call_accepted', (data) => {
-        // El otro usuario aceptó — hacer la llamada PeerJS real
-        if (myPeer && localStream) {
+    socket.on('call_accepted', async (data) => {
+        console.log('📹 Llamada aceptada, peerId remoto:', data.peerId);
+        // Esperar a que localStream esté disponible (máx 5 seg)
+        let intentos = 0;
+        while (!localStream && intentos < 25) {
+            await new Promise(r => setTimeout(r, 200));
+            intentos++;
+        }
+        if (!myPeer || !localStream) {
+            showToast('Error: no se pudo obtener cámara para la llamada', 'error');
+            endCall();
+            return;
+        }
+        try {
             const call = myPeer.call(data.peerId, localStream);
             currentCall = call;
             call.on('stream', (remoteStream) => {
+                console.log('📹 Stream remoto recibido (saliente)');
                 showRemoteStream(remoteStream);
                 document.getElementById('vc-connecting').style.display = 'none';
             });
             call.on('close', () => endCall());
+            call.on('error', (e) => { console.error('Call error:', e); endCall(); });
+        } catch(e) {
+            console.error('Error al llamar:', e);
+            showToast('Error al conectar la videollamada', 'error');
+            endCall();
         }
     });
 
@@ -259,6 +269,43 @@ socket = io(_serverUrl, {
     socket.on('call_ended', () => {
         showToast('📵 El otro usuario colgó', 'info');
         endCall();
+    });
+
+    // ── Recibir tareas creadas por otros miembros del grupo ──
+    socket.on('task_created', (data) => {
+        // No agregar si ya existe
+        if (document.querySelector(`[data-task-socket="${data.taskLocalId}_${data.senderId}"]`)) return;
+        taskIdCounter++;
+        const id   = taskIdCounter;
+        const list = document.getElementById('task-list');
+        if (!list) return;
+        const item = document.createElement('div');
+        item.className = 'task-item';
+        item.dataset.id = id;
+        item.dataset.taskSocket = `${data.taskLocalId}_${data.senderId}`;
+        item.innerHTML = `
+            <div class="task-check-wrap">
+                <input type="checkbox" id="task${id}" onchange="toggleTask(${id},this)">
+                <label for="task${id}" class="task-label">${escHtml(data.text)}</label>
+            </div>
+            <div class="task-meta">
+                <span class="task-assignee-badge"><i class="fas fa-user"></i> ${escHtml(data.assignee||'Todos')}</span>
+                <button class="task-del" onclick="deleteTask(${id})"><i class="fas fa-trash"></i></button>
+            </div>`;
+        list.appendChild(item);
+        updateTaskCount();
+        // Notificar si no está en la pestaña de tareas
+        if (document.getElementById('tasks-section').style.display === 'none') {
+            const notif = document.getElementById('tasks-notif');
+            if (notif) { notif.style.display='flex'; notif.textContent=String((parseInt(notif.textContent)||0)+1); }
+        }
+        showToast(`📋 ${data.senderId} agregó tarea: "${data.text}"`, 'info');
+    });
+
+    // ── Recibir tarea completada por otro miembro ──
+    socket.on('task_done', (data) => {
+        if (data.userId === currentUser.name) return; // ya lo manejamos localmente
+        showToast(`✅ ${data.userId} completó una tarea`, 'info');
     });
 
 } catch(e) {
@@ -831,6 +878,7 @@ let micActive       = true;
 let camActive       = true;
 
 // ── INICIALIZAR PEERJS ────────────────────────────────────
+// Usa el servidor PeerJS público de peerjs.com para mayor compatibilidad
 function initPeer() {
     if (myPeer) return;
 
@@ -840,15 +888,20 @@ function initPeer() {
         .replace(/[^a-z0-9_]/g, '')
         + '_' + Date.now();
 
-    const serverUrl = window.__FIFA_SERVER__ || 'http://localhost:3000';
-    const parsed    = new URL(serverUrl);
-
+    // Usar servidor PeerJS en la nube (más estable que el propio)
     myPeer = new Peer(safePeerId, {
-        host:   parsed.hostname,
-        port:   parsed.port || (parsed.protocol === 'https:' ? 443 : 80),
-        path:   '/peerjs',
-        secure: parsed.protocol === 'https:',
-        debug:  1
+        host: '0.peerjs.com',
+        port: 443,
+        path: '/',
+        secure: true,
+        debug: 1,
+        config: {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' },
+                { urls: 'turn:numb.viagenie.ca', credential: 'muazkh', username: 'webrtc@live.com' }
+            ]
+        }
     });
 
     myPeer.on('open', (id) => {
@@ -860,40 +913,76 @@ function initPeer() {
 
     // Llamada ENTRANTE — el receptor responde aquí
     myPeer.on('call', (call) => {
+        // Mostrar modal antes de pedir cámara
+        openModal('videocall-modal');
+        document.getElementById('vc-connecting').style.display = 'block';
+        document.getElementById('vc-timer').textContent = '00:00';
+
         navigator.mediaDevices.getUserMedia({ video: true, audio: true })
             .then((stream) => {
                 localStream = stream;
                 currentCall = call;
+
+                // Mostrar mi propia cámara
+                const localVid = document.getElementById('local-stream');
+                if (localVid) { localVid.srcObject = stream; localVid.style.display = 'block'; }
+
+                // Responder la llamada con mi stream
                 call.answer(stream);
-                call.on('stream', (remoteStream) => { showRemoteStream(remoteStream); });
-                call.on('close', () => { endCall(); });
-                openModal('videocall-modal');
+
+                // Cuando llega el video del otro usuario
+                call.on('stream', (remoteStream) => {
+                    console.log('📹 Stream remoto recibido (entrante)');
+                    showRemoteStream(remoteStream);
+                });
+                call.on('close', () => endCall());
+                call.on('error', (e) => { console.error('Call error:', e); endCall(); });
+
                 document.getElementById('vc-connecting').style.display = 'none';
-                document.getElementById('local-stream').srcObject = stream;
                 startCallTimer();
-                showToast('📹 Llamada entrante conectada', 'success');
+                showToast('📹 Llamada conectada', 'success');
                 awardPoints(200, 'Realizaste una videollamada');
+                document.getElementById('badge-vc')?.classList.add('unlocked');
             })
             .catch((err) => {
                 console.error('❌ Cámara/mic denegados:', err);
                 showToast('Activa cámara y micrófono en tu navegador', 'error');
+                closeModal('videocall-modal');
             });
     });
 
     myPeer.on('error', (err) => {
-        console.warn('⚠️ PeerJS error:', err.type);
+        console.warn('⚠️ PeerJS error:', err.type, err.message);
         if (err.type === 'peer-unavailable') {
             showToast('El usuario no está disponible para videollamada', 'error');
             closeModal('videocall-modal');
+        } else if (err.type === 'network' || err.type === 'server-error') {
+            showToast('⚠️ Error de red en videollamada', 'error');
         }
+    });
+
+    myPeer.on('disconnected', () => {
+        console.warn('PeerJS desconectado, reconectando...');
+        setTimeout(() => { if (myPeer && !myPeer.destroyed) myPeer.reconnect(); }, 2000);
     });
 }
 
 function showRemoteStream(remoteStream) {
+    console.log('📹 Mostrando stream remoto, tracks:', remoteStream.getTracks().length);
     const remoteVideo = document.getElementById('remote-stream');
     const placeholder = document.getElementById('vc-placeholder');
-    if (remoteVideo) { remoteVideo.srcObject = remoteStream; remoteVideo.style.display = 'block'; }
+
+    if (remoteVideo) {
+        remoteVideo.srcObject = remoteStream;
+        remoteVideo.style.display = 'block';
+        // Forzar reproducción en móviles
+        remoteVideo.play().catch(e => console.warn('Autoplay bloqueado:', e));
+    }
     if (placeholder) placeholder.style.display = 'none';
+
+    document.getElementById('vc-connecting').style.display = 'none';
+    document.getElementById('vc-caller-name').textContent  = currentChat.name || 'Contacto';
+
     startCallTimer();
     showToast('📹 Videollamada conectada', 'success');
     awardPoints(200, 'Realizaste una videollamada');
@@ -905,20 +994,33 @@ function openVideoCall() {
         showToast('Las videollamadas son solo en chats privados', 'info');
         return;
     }
+    if (!navigator.mediaDevices?.getUserMedia) {
+        showToast('Tu navegador no soporta videollamadas', 'error');
+        return;
+    }
+
     openModal('videocall-modal');
     document.getElementById('vc-connecting').style.display = 'block';
     document.getElementById('vc-timer').textContent = '00:00';
-
-    if (!navigator.mediaDevices?.getUserMedia) {
-        showToast('Tu navegador no soporta videollamadas', 'error');
-        closeModal('videocall-modal');
-        return;
-    }
+    document.getElementById('vc-remote-name').textContent = currentChat.name;
+    document.getElementById('vc-caller-name').textContent = `Llamando a ${currentChat.name}...`;
 
     navigator.mediaDevices.getUserMedia({ video: true, audio: true })
         .then((stream) => {
             localStream = stream;
-            document.getElementById('local-stream').srcObject = stream;
+            micActive = true;
+            camActive = true;
+
+            // Mostrar mi propia cámara inmediatamente
+            const localVid = document.getElementById('local-stream');
+            if (localVid) { localVid.srcObject = stream; localVid.style.display = 'block'; }
+
+            // Restablecer botones mic/cam
+            const btnMic = document.getElementById('btn-mic');
+            const btnCam = document.getElementById('btn-cam');
+            if (btnMic) { btnMic.classList.remove('muted'); btnMic.innerHTML = '<i class="fas fa-microphone"></i>'; }
+            if (btnCam) { btnCam.classList.remove('muted'); btnCam.innerHTML = '<i class="fas fa-video"></i>'; }
+
             if (socket?.connected) {
                 socket.emit('call_user', {
                     callerId:   currentUser.name,
@@ -928,18 +1030,22 @@ function openVideoCall() {
                 });
                 showToast(`📞 Llamando a ${currentChat.name}...`, 'info');
             } else {
-                // Modo demo sin servidor
                 setTimeout(() => {
                     document.getElementById('vc-connecting').style.display = 'none';
                     startCallTimer();
-                    showToast('📹 Videollamada (modo demo local)', 'success');
-                    awardPoints(200, 'Realizaste una videollamada');
+                    showToast('📹 Videollamada (modo demo — sin servidor)', 'info');
                 }, 2000);
             }
         })
         .catch((err) => {
             console.error('❌ Acceso denegado a cámara/mic:', err);
-            showToast('Activa el permiso de cámara y micrófono en tu navegador', 'error');
+            if (err.name === 'NotAllowedError') {
+                showToast('Debes permitir acceso a cámara y micrófono en el navegador', 'error');
+            } else if (err.name === 'NotFoundError') {
+                showToast('No se encontró cámara o micrófono en este dispositivo', 'error');
+            } else {
+                showToast('Error al acceder a cámara/micrófono: ' + err.message, 'error');
+            }
             closeModal('videocall-modal');
         });
 }
@@ -971,17 +1077,70 @@ function endCall() {
 }
 
 function toggleMic(btn) {
+    if (!localStream) { showToast('No hay llamada activa', 'info'); return; }
     micActive = !micActive;
+    localStream.getAudioTracks().forEach(t => { t.enabled = micActive; });
     btn.classList.toggle('muted', !micActive);
     btn.innerHTML = micActive ? '<i class="fas fa-microphone"></i>' : '<i class="fas fa-microphone-slash"></i>';
-    if (localStream) localStream.getAudioTracks().forEach(t => t.enabled = micActive);
+    showToast(micActive ? '🎤 Micrófono activado' : '🔇 Micrófono silenciado', 'info');
 }
 
 function toggleCam(btn) {
+    if (!localStream) { showToast('No hay llamada activa', 'info'); return; }
     camActive = !camActive;
+    localStream.getVideoTracks().forEach(t => { t.enabled = camActive; });
     btn.classList.toggle('muted', !camActive);
     btn.innerHTML = camActive ? '<i class="fas fa-video"></i>' : '<i class="fas fa-video-slash"></i>';
-    if (localStream) localStream.getVideoTracks().forEach(t => t.enabled = camActive);
+    showToast(camActive ? '📹 Cámara activada' : '📷 Cámara apagada', 'info');
+}
+
+let screenStream = null;
+async function toggleScreenShare() {
+    const btn = document.getElementById('btn-screen');
+    if (screenStream) {
+        // Detener compartir pantalla — volver a cámara
+        screenStream.getTracks().forEach(t => t.stop());
+        screenStream = null;
+        if (btn) { btn.classList.remove('muted'); btn.innerHTML = '<i class="fas fa-desktop"></i>'; }
+        // Reemplazar track en la llamada activa
+        if (currentCall && localStream) {
+            const videoTrack = localStream.getVideoTracks()[0];
+            if (videoTrack) {
+                const sender = currentCall.peerConnection?.getSenders()
+                    .find(s => s.track?.kind === 'video');
+                if (sender) await sender.replaceTrack(videoTrack);
+            }
+            const localVid = document.getElementById('local-stream');
+            if (localVid) localVid.srcObject = localStream;
+        }
+        showToast('🖥️ Compartir pantalla detenido', 'info');
+        return;
+    }
+    try {
+        screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+        const screenTrack = screenStream.getVideoTracks()[0];
+        // Reemplazar video en la llamada activa
+        if (currentCall) {
+            const sender = currentCall.peerConnection?.getSenders()
+                .find(s => s.track?.kind === 'video');
+            if (sender) await sender.replaceTrack(screenTrack);
+        }
+        // Mostrar pantalla en el video local
+        const localVid = document.getElementById('local-stream');
+        if (localVid) {
+            const mixed = new MediaStream([screenTrack, ...localStream.getAudioTracks()]);
+            localVid.srcObject = mixed;
+        }
+        if (btn) { btn.classList.add('muted'); btn.innerHTML = '<i class="fas fa-desktop"></i>'; }
+        showToast('🖥️ Compartiendo pantalla', 'success');
+        // Cuando el usuario deja de compartir desde el navegador
+        screenTrack.onended = () => toggleScreenShare();
+    } catch(e) {
+        if (e.name !== 'NotAllowedError') {
+            showToast('Error al compartir pantalla: ' + e.message, 'error');
+        }
+        screenStream = null;
+    }
 }
 function toggleFullscreen() {
     const el = document.querySelector('.videocall-ui');
@@ -998,6 +1157,7 @@ function addTask() {
     taskIdCounter++;
     const id   = taskIdCounter;
     const list = document.getElementById('task-list');
+
     const item = document.createElement('div');
     item.className = 'task-item';
     item.dataset.id = id;
@@ -1014,16 +1174,44 @@ function addTask() {
     input.value = '';
     updateTaskCount();
     showToast('✅ Tarea agregada al grupo','success');
-    // Notify task in chat
+
+    // Sincronizar vía Socket.io con todos los miembros del grupo
+    const groupId = currentChat.type === 'group' ? currentChat.id : 'grupo_tour';
     if (socket?.connected) {
-        socket.emit('send_group_message', { groupId:currentChat.id, senderId:currentUser.name, message:`📋 Nueva tarea: "${text}" → ${assignee}`, type:'text', time:new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) });
+        socket.emit('task_created', {
+            groupId,
+            text,
+            assignee,
+            senderId: currentUser.name,
+            taskLocalId: id
+        });
     }
-    // Tasks notif badge
+
+    // Guardar en Firestore
+    if (window.db_saveTask) {
+        window.db_saveTask(groupId, { text, assignee, creator: currentUser.name });
+    }
+
+    // Notificar en el chat del grupo
+    if (socket?.connected && currentChat.type === 'group') {
+        socket.emit('send_group_message', {
+            groupId: currentChat.id,
+            senderId: currentUser.name,
+            message: `📋 Nueva tarea: "${text}" → ${assignee}`,
+            type: 'text',
+            time: new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})
+        });
+    }
+
+    // Badge de notificación en Tareas
     const tasksNotif = document.getElementById('tasks-notif');
-    if (document.getElementById('tasks-section').style.display==='none') {
+    if (document.getElementById('tasks-section').style.display === 'none') {
         tasksNotif.style.display = 'flex';
         tasksNotif.textContent = String((parseInt(tasksNotif.textContent)||0)+1);
     }
+
+    // Puntos por crear tarea
+    awardPoints(5, 'Creaste una tarea grupal');
 }
 function toggleTask(id, checkbox) {
     const item = document.querySelector(`.task-item[data-id="${id}"]`);
@@ -1032,9 +1220,22 @@ function toggleTask(id, checkbox) {
     updateTaskCount();
     if (checkbox.checked) {
         tasksCompleted++;
-        showToast('🎉 Tarea completada!','success');
-        awardPoints(75,'Completaste una tarea');
-        if (tasksCompleted >= 3) document.getElementById('badge-tasks')?.classList.add('unlocked');
+        showToast('🎉 ¡Tarea completada! +75 pts','success');
+        awardPoints(75, 'Completaste una tarea grupal');
+        // Desbloquear logro después de 3 tareas
+        if (tasksCompleted >= 3) {
+            document.getElementById('badge-tasks')?.classList.add('unlocked');
+            showToast('🏅 ¡Logro desbloqueado: Eficiente!', 'success');
+        }
+        // Sincronizar con el grupo vía socket
+        const groupId = currentChat.type === 'group' ? currentChat.id : 'grupo_tour';
+        if (socket?.connected) {
+            socket.emit('task_done', {
+                groupId,
+                taskLocalId: id,
+                userId: currentUser.name
+            });
+        }
     }
 }
 function deleteTask(id) {
@@ -1278,8 +1479,6 @@ document.addEventListener('DOMContentLoaded', () => {
     updatePtsDisplay();
     updateStoreButtons();
 
-    setTimeout(loadRealUsers, 1500); // espera que Firestore cargue
-     
     // Listeners seguros: el DOM ya existe aquí
     const encToggle = document.getElementById('encryption-toggle');
     if (encToggle) {
