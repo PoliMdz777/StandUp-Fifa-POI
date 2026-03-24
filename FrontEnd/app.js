@@ -1524,63 +1524,48 @@ window.logoutApp = logoutApp;
 //  CARGA DINÁMICA DE USUARIOS REALES DESDE FIREBASE
 
 async function loadRealUsers() {
+    const list = document.getElementById('contacts-list');
+    const selector = document.getElementById('group-users-selection');
+    
     try {
-        // Esperar a que firestore_integration.js cargue
-        let intentos = 0;
-        while (!window.__FIRESTORE_READY__ && intentos < 20) {
-            await new Promise(r => setTimeout(r, 300));
-            intentos++;
-        }
-
-        // Leer usuarios directo de Firestore (sin necesitar serviceAccountKey)
-        const { getFirestore, collection, getDocs } = await import(
-            'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
-        );
-        const { initializeApp, getApps } = await import(
-            'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js'
-        );
-
-        const firebaseConfig = {
-            apiKey: "AIzaSyBQCxLixqM8qDquL3-xkMjkyupBlcgl2ek",
-            authDomain: "standup-fifa-5f423.firebaseapp.com",
-            projectId: "standup-fifa-5f423",
-            storageBucket: "standup-fifa-5f423.appspot.com",
-            messagingSenderId: "823333890415",
-            appId: "1:112092859394:web:acaf19a3ed635667d3ab1b"
-        };
-
-        const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
-        const db  = getFirestore(app);
-        const snap = await getDocs(collection(db, 'users'));
-        const users = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-
-        const list = document.getElementById('contacts');
-        const selector = document.querySelector('.user-selector');
+        // Limpiar inmediatamente los usuarios predeterminados para evitar confusiones
+        if (list) list.innerHTML = '<p style="color:var(--muted); padding:10px; font-size:0.9rem;">Cargando usuarios desde la base de datos...</p>';
         if (selector) selector.innerHTML = '';
 
-        users.forEach(u => {
-            if (u.name === currentUser.name) return;
+        let attempts = 0;
+        // Esperamos máximo 8 segundos a que Firestore cargue
+        while (!window.__FIRESTORE_READY__ && attempts < 40) {
+            await new Promise(r => setTimeout(r, 200));
+            attempts++;
+        }
 
-            // ── Agregar a lista de contactos ──────────────
-            if (!document.querySelector(`[data-chat-id="${u.name}"]`)) {
+        if (!window.__FIRESTORE_READY__) {
+            throw new Error("No se pudo conectar con Firebase. Revisa tu consola.");
+        }
+
+        const users = await window.db_getAllUsers();
+        if (list) list.innerHTML = ''; // Limpiar el "Cargando..."
+
+        users.forEach(u => {
+            if (u.name === currentUsername) return; // No mostrarme a mí mismo
+
+            if (list) {
                 const li = document.createElement('li');
                 li.className = 'contact-item';
-                li.dataset.chatId = u.name;
-                li.onclick = () => selectChat('private', u.name, u.name, 'user', li);
+                li.onclick = () => openChat(u.name, 'private', u.avatar, u.status);
                 li.innerHTML = `
                     <div class="contact-avatar">
-                        <img src="${u.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${u.name}`}" alt="">
-                        <span class="status-indicator ${u.status || 'offline'}" id="status-${u.name}"></span>
+                        <img src="${u.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${u.name}`}" alt="${u.name}">
+                        <div class="status-indicator ${u.status === 'online' ? 'status-online' : 'status-offline'}"></div>
                     </div>
                     <div class="contact-info">
                         <span class="contact-name">${escHtml(u.name)}</span>
-                        <span class="contact-preview" id="preview-${u.name}">${escHtml(u.country || '')}</span>
+                        <span class="contact-preview" id="preview-${u.name}">${escHtml(u.country || 'Sin país')}</span>
                     </div>
                     <span class="unread-badge" id="badge-${u.name}" style="display:none">0</span>`;
                 list.appendChild(li);
             }
 
-            // ── Agregar al modal "Crear Grupo" ────────────
             if (selector) {
                 const item = document.createElement('div');
                 item.className = 'user-check-item';
@@ -1597,12 +1582,13 @@ async function loadRealUsers() {
             }
         });
 
-        if (selector && selector.children.length === 0) {
-            selector.innerHTML = '<p style="color:var(--muted);font-size:.82rem;padding:10px">No hay otros usuarios registrados aún.</p>';
+        if (list && list.children.length === 0) {
+            list.innerHTML = '<p style="color:var(--muted); padding:10px;">No hay otros usuarios registrados aún.</p>';
         }
 
     } catch(e) {
-        console.warn('No se pudieron cargar usuarios desde Firestore:', e);
+        console.error('❌ Error cargando usuarios reales:', e);
+        if (list) list.innerHTML = `<p style="color:var(--danger); padding:10px; font-size:0.85rem;">Error al cargar: ${e.message}</p>`;
     }
 }
 window.loadRealUsers = loadRealUsers;
