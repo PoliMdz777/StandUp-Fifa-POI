@@ -1521,6 +1521,33 @@ function logoutApp() {
 }
 window.logoutApp = logoutApp;
 
+function confirmCreateGroup() {
+    const groupNameInput = document.getElementById('new-group-name');
+    const checkboxes = document.querySelectorAll('#group-users-selection input[type="checkbox"]:checked');
+    
+    // Regla de Negocio 2: Mínimo 3 integrantes (El creador + 2 seleccionados)
+    if (checkboxes.length < 2) {
+        showToast('Debes seleccionar al menos 2 personas para crear un grupo (Mínimo 3 incluyéndote a ti).', 'error');
+        return;
+    }
+
+    if (!groupNameInput.value.trim()) {
+        showToast('El grupo debe tener un nombre.', 'error');
+        return;
+    }
+
+    const selectedUsers = Array.from(checkboxes).map(cb => cb.value);
+    
+    socket.emit('create_group', {
+        name: groupNameInput.value.trim(),
+        members: [currentUsername, ...selectedUsers], // currentUsername es el administrador
+        creator: currentUsername 
+    });
+
+    closeModal('create-group-modal');
+    showToast(`Grupo ${groupNameInput.value} creado.`, 'success');
+}
+
 //  CARGA DINÁMICA DE USUARIOS REALES DESDE FIREBASE
 
 async function loadRealUsers() {
