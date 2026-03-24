@@ -1528,3 +1528,27 @@ canvas.video-hidden {
     pointer-events: none;
     z-index: -1;
 }
+
+/* Fix de la altura completa para Safari / iOS y Android */
+@supports (height: 100dvh) {
+    .modal-content, .videocall-container {
+        height: 100dvh !important;
+        min-height: 100dvh !important;
+    }
+}
+
+@media (max-width: 768px) {
+    /* Hacer el cuadro de 'Tú' (cámara local) más pequeño y que no estorbe */
+    .local-video-container {
+        width: 100px;
+        height: 150px;
+        bottom: 90px; /* Arriba de los botones */
+        right: 15px;
+        border-radius: 12px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    }
+    
+    .vc-controls {
+        padding-bottom: env(safe-area-inset-bottom, 20px); /* iPhone notch */
+    }
+}
