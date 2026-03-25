@@ -202,18 +202,16 @@
             </div>
             <div class="add-task-bar">
                 <input type="text" id="new-task-input" placeholder="Nueva tarea..." onkeypress="if(event.key==='Enter')addTask()">
-                <select id="task-type" title="Tipo de tarea">
+                <select id="task-type" title="Tipo">
                     <option value="group">👥 Grupal</option>
                     <option value="personal">👤 Personal</option>
                 </select>
-                <select id="task-assignee" title="Asignar a">
+                <select id="task-assignee">
                     <option value="">Todos</option>
                     <option>Turista 1</option><option>Turista 23</option>
                     <option>Guía Carlos</option><option>María González</option>
                 </select>
-                <button class="btn-add-task" onclick="addTask();updateTaskAssigneeList()">
-                    <i class="fas fa-plus"></i> <span class="btn-text-resp">Agregar</span>
-                </button>
+                <button class="btn-add-task" onclick="addTask();updateTaskAssigneeList()"><i class="fas fa-plus"></i> <span class="btn-text-resp">Agregar</span></button>
             </div>
             <div class="task-list" id="task-list">
                 <div class="task-item" data-id="1">
@@ -893,8 +891,10 @@
 <!--PeerJS para videollamadas reales WebRTC-->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
 <script src="videocall_enhanced.js"></script>
-<!--app principal-->
+
 <script src="tasks_enhanced.js"></script>
+
+<!--app principal-->
 <script src="app.js"></script>
 
  <script src="emoji store.js"></script>
