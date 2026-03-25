@@ -753,7 +753,33 @@ textarea::placeholder { color: var(--muted); }
         border-radius: 20px 20px 0 0;
         max-height: 92vh;
     }
-    .videocall-ui { border-radius: 0; height: 100vh; max-width: 100%; }
+     .videocall-ui {
+        width: 100vw !important;
+        height: 100vh !important;
+        border-radius: 0 !important;
+        max-width: 100% !important;
+    }
+
+    .vc-btn {
+        width: 52px;
+        height: 52px;
+        font-size: 1rem;
+    }
+    .vc-controls {
+        bottom: 20px;
+        gap: 20px;
+    }
+
+     .vc-info-bar {
+        font-size: 0.7rem;
+        padding: 4px 12px;
+    }
+    #filter-panel {
+        width: calc(100vw - 32px) !important;
+        left: 16px !important;
+        transform: none !important;
+        bottom: 90px !important;
+    }
 
     .level-levels { gap: 2px; }
     .lv-arrow { display: none; }
@@ -765,6 +791,14 @@ textarea::placeholder { color: var(--muted); }
     .profile-tab-btn:last-child { border-bottom: none; }
 
     .profile-avatar-section { flex-direction: column; text-align: center; }
+
+     .remote-video {
+        border-radius: 0;
+    }
+    #remote-stream {
+        object-fit: cover;
+    }
+    
 }
 
 /* ─── SMALL MOBILE (≤ 380px) ─────────────────────── */
@@ -945,10 +979,22 @@ textarea::placeholder { color: var(--muted); }
         max-width: 100% !important;
     }
     .local-video {
-        width: 120px !important;
-        height: 88px !important;
+        width: 100px !important;
+        height: 75px !important;
         bottom: 80px !important;
         right: 12px !important;
+    }
+    .vc-controls {
+        gap: 12px;
+        padding: 8px 16px;
+    }
+    .vc-btn {
+        width: 44px;
+        height: 44px;
+        font-size: 0.9rem;
+    }
+    .remote-video {
+        border-radius: 0;
     }
 }
 
@@ -1352,7 +1398,3 @@ textarea::placeholder { color: var(--muted); }
 .bg-gold-bubble   { background: linear-gradient(135deg,#F0C040,#E8A020) !important; color: #0A0E1A !important; }
 .bg-sunset-bubble { background: linear-gradient(135deg,#6B1B8A,#FF6B35) !important; }
 
-@media (max-width: 600px) {
-    .store-tabs { gap: 4px; }
-    .store-tab  { padding: 5px 10px; font-size: 0.73rem; }
-}
