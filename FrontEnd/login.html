@@ -210,6 +210,12 @@
                     <div class="field-error" id="err-login-pass"><i class="fas fa-circle-exclamation"></i> La contraseña es requerida.</div>
                     <div class="field-error" id="err-login-firebase"><i class="fas fa-circle-exclamation"></i> <span id="firebase-login-msg">Correo o contraseña incorrectos.</span></div>
                 </div>
+                <div class="form-check" style="justify-content:space-between;margin:4px 0 16px;">
+                    <label style="display:flex;align-items:center;gap:8px;">
+                        <input type="checkbox" id="remember-checkbox"> Recordarme
+                    </label>
+                    <a href="#" onclick="event.preventDefault();window.resetPassword()" style="color:var(--teal);text-decoration:none;font-size:0.8rem;">¿Olvidaste tu contraseña?</a>
+                </div>
                 <button type="submit" class="btn-auth" id="btn-login">
                     <span class="btn-text"><i class="fas fa-futbol"></i> &nbsp;ENTRAR AL HUB</span>
                     <div class="spinner"></div>
@@ -269,6 +275,7 @@
                             <i class="fas fa-eye"></i>
                         </button>
                     </div>
+
                     <div class="strength-bar">
                         <div class="strength-seg" id="s1"></div>
                         <div class="strength-seg" id="s2"></div>
@@ -303,6 +310,7 @@
          (Mismas credenciales que Firebase_config.js)
     ══════════════════════════════════════════════════════════ -->
     <script type="module">
+        // ── Imports (una sola vez, sin duplicados) ─────────────────────
         import { initializeApp }  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
         import {
             getAuth,
@@ -310,27 +318,19 @@
             createUserWithEmailAndPassword,
             updateProfile,
             GoogleAuthProvider,
+            FacebookAuthProvider,
             signInWithPopup,
-            onAuthStateChanged
+            onAuthStateChanged,
+            sendPasswordResetEmail,
+            setPersistence,
+            browserLocalPersistence,
+            browserSessionPersistence
         } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
         import {
-            getFirestore,
-            doc,
-            setDoc,
-            getDoc,
-            serverTimestamp
+            getFirestore, doc, setDoc, getDoc, serverTimestamp
         } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-        // ══════════════════════════════════════════════════
-        //  ⚙️  CONFIGURACIÓN FIREBASE
-        //  Si ves errores de "project not found" o "api-key",
-        //  ve a Firebase Console → Configuración del proyecto
-        //  → General → Tu app web → Copiar el objeto firebaseConfig
-        //  y reemplaza los valores de abajo.
-        //
-        //  La URL de tu consola muestra: standup-fifa-5f423
-        //  Verifica que projectId coincida exactamente.
-        // ══════════════════════════════════════════════════
+        // ── Firebase config ────────────────────────────────────────────
         const firebaseConfig = {
             apiKey:            "AIzaSyCJnj-DnbmIY7P4QgNrvq0h4umF4SGP_lw",
             authDomain:        "standup-fifa-5f423.firebaseapp.com",
@@ -344,58 +344,50 @@
         const auth = getAuth(app);
         const db   = getFirestore(app);
 
-        // ── Verificar que Auth esté configurado ─────────
+        // ── Indicador de estado ────────────────────────────────────────
         const fbStatus = document.getElementById('firebase-status');
-        fbStatus.classList.add('visible');
+        if (fbStatus) {
+            fbStatus.classList.add('visible');
+            fbStatus.textContent = `🔥 Firebase OK · Proyecto: ${firebaseConfig.projectId}`;
+            setTimeout(() => fbStatus.classList.remove('visible'), 3000);
+        }
 
-        // Test rápido de conexión — intenta obtener el currentUser
-        auth.app.options && (fbStatus.textContent = `🔥 Firebase OK · Proyecto: ${firebaseConfig.projectId}`);
-        setTimeout(() => fbStatus.classList.remove('visible'), 3000);
-
-        // Mostrar banner de ayuda si la URL tiene ?debug=1
+        // ── Banner debug (?debug=1 en la URL) ─────────────────────────
         if (new URLSearchParams(location.search).has('debug')) {
             const banner = document.createElement('div');
             banner.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#1a0a00;border-bottom:1px solid #f39c12;color:#f39c12;padding:8px 16px;font-size:0.78rem;z-index:9999;';
-            banner.innerHTML = `
-                <strong>🔧 Modo debug:</strong>
-                ProjectID: <code>${firebaseConfig.projectId}</code> |
-                AuthDomain: <code>${firebaseConfig.authDomain}</code> |
-                <a href="https://console.firebase.google.com/project/${firebaseConfig.projectId}/authentication/providers" target="_blank" style="color:#f0c040;">
-                    Verificar Auth habilitado ↗
-                </a>
-            `;
+            banner.innerHTML = `<strong>🔧 Modo debug:</strong> ProjectID: <code>${firebaseConfig.projectId}</code> |
+                <a href="https://console.firebase.google.com/project/${firebaseConfig.projectId}/authentication/providers" target="_blank" style="color:#f0c040;">Verificar Auth ↗</a>`;
             document.body.appendChild(banner);
         }
 
-        // ── Helper: traducir errores de Firebase ─────────
+        // ── Traducir códigos de error de Firebase ──────────────────────
         function translateError(code) {
             const map = {
-                'auth/user-not-found':           'No existe cuenta con ese correo. ¿Ya te registraste?',
-                'auth/wrong-password':            'Contraseña incorrecta.',
-                'auth/invalid-credential':        'Correo o contraseña incorrectos.',
-                'auth/email-already-in-use':      'Este correo ya está registrado. Usa "Ingresar".',
-                'auth/weak-password':             'Contraseña muy débil. Usa mínimo 8 caracteres.',
-                'auth/invalid-email':             'El formato del correo es inválido.',
-                'auth/too-many-requests':         'Demasiados intentos. Espera unos minutos.',
-                'auth/network-request-failed':    'Sin conexión a internet. Verifica tu red.',
-                'auth/popup-closed-by-user':      'Cerraste la ventana antes de completar el inicio.',
-                'auth/operation-not-allowed':     '⚠️ Email/Password NO está habilitado en Firebase Console. Ve a Authentication → Sign-in method → Correo/Contraseña → Activar.',
-                'auth/configuration-not-found':   '⚠️ Proyecto Firebase no encontrado. Verifica el projectId en la configuración.',
-                'auth/api-key-not-valid':         '⚠️ API Key de Firebase inválida. Revisa la configuración.',
-                'auth/project-not-found':         '⚠️ Proyecto Firebase no encontrado. Revisa el projectId.',
+                'auth/user-not-found':        'No existe cuenta con ese correo. ¿Ya te registraste?',
+                'auth/wrong-password':         'Contraseña incorrecta.',
+                'auth/invalid-credential':     'Correo o contraseña incorrectos.',
+                'auth/email-already-in-use':   'Este correo ya está registrado. Usa "Ingresar".',
+                'auth/weak-password':          'Contraseña muy débil. Usa mínimo 8 caracteres.',
+                'auth/invalid-email':          'El formato del correo es inválido.',
+                'auth/too-many-requests':      'Demasiados intentos. Espera unos minutos.',
+                'auth/network-request-failed': 'Sin conexión a internet. Verifica tu red.',
+                'auth/popup-closed-by-user':   'Cerraste la ventana antes de completar el inicio.',
+                'auth/operation-not-allowed':  '⚠️ Email/Password NO está habilitado en Firebase Console. Ve a Authentication → Sign-in method → Correo/Contraseña → Activar.',
+                'auth/configuration-not-found':'⚠️ Proyecto Firebase no encontrado. Verifica el projectId.',
+                'auth/api-key-not-valid':      '⚠️ API Key de Firebase inválida. Revisa la configuración.',
+                'auth/project-not-found':      '⚠️ Proyecto Firebase no encontrado. Revisa el projectId.',
             };
-            // Mostrar código real en consola para debug
             if (!map[code]) console.warn('⚠️ Firebase error code no mapeado:', code);
             return map[code] || `Error: ${code || 'desconocido'}. Revisa la consola (F12).`;
         }
 
-        // ── Helper: cargar perfil de Firestore y redirigir ──
+        // ── Cargar perfil de Firestore y redirigir ─────────────────────
         async function loadProfileAndRedirect(firebaseUser) {
             try {
                 const snap = await getDoc(doc(db, 'users', firebaseUser.uid));
                 let userData;
                 if (snap.exists()) {
-                    // Usuario ya tiene perfil en Firestore
                     userData = {
                         uid:       firebaseUser.uid,
                         name:      snap.data().name      || firebaseUser.displayName || firebaseUser.email.split('@')[0],
@@ -410,42 +402,27 @@
                         equipped:  snap.data().equipped  || {}
                     };
                 } else {
-                    // Nuevo usuario sin perfil (por si acaso)
                     userData = {
                         uid:       firebaseUser.uid,
                         name:      firebaseUser.displayName || firebaseUser.email.split('@')[0],
                         email:     firebaseUser.email,
                         country:   '🇲🇽 México',
-                        points:    0,
-                        level:     'Rookie',
-                        status:    'online',
-                        bio:       '',
-                        avatar:    null,
-                        inventory: [],
-                        equipped:  {}
+                        points:    0, level: 'Rookie', status: 'online',
+                        bio: '', avatar: null, inventory: [], equipped: {}
                     };
                 }
-
-                // Guardar en sessionStorage + localStorage para que app.js los lea
                 const json = JSON.stringify(userData);
                 sessionStorage.setItem('fifa_user', json);
                 localStorage.setItem('fifa_user_persist', json);
-
                 showToast('✅ ¡Bienvenido, ' + userData.name + '!');
                 setTimeout(() => { window.location.href = 'INDEX.html'; }, 1000);
-
             } catch (err) {
                 console.error('Error cargando perfil:', err);
-                // Redirigir de todas formas con datos básicos
                 const fallback = JSON.stringify({
-                    uid:     firebaseUser.uid,
-                    name:    firebaseUser.displayName || firebaseUser.email.split('@')[0],
-                    email:   firebaseUser.email,
-                    points:  0,
-                    level:   'Rookie',
-                    country: '🇲🇽 México',
-                    inventory: [],
-                    equipped:  {}
+                    uid: firebaseUser.uid,
+                    name: firebaseUser.displayName || firebaseUser.email.split('@')[0],
+                    email: firebaseUser.email, points: 0, level: 'Rookie',
+                    country: '🇲🇽 México', inventory: [], equipped: {}
                 });
                 sessionStorage.setItem('fifa_user', fallback);
                 localStorage.setItem('fifa_user_persist', fallback);
@@ -453,15 +430,16 @@
             }
         }
 
-        // ══════════════════════════════════════════════════
-        //  LOGIN con Firebase Auth — Email + Contraseña
-        // ══════════════════════════════════════════════════
+        // ══════════════════════════════════════════════════════
+        //  LOGIN con Email + Contraseña
+        // ══════════════════════════════════════════════════════
         window.handleLogin = async function(e) {
             e.preventDefault();
             clearErrors();
 
-            const email = document.getElementById('login-email').value.trim();
-            const pass  = document.getElementById('login-password').value;
+            const email    = document.getElementById('login-email').value.trim();
+            const pass     = document.getElementById('login-password').value;
+            const remember = document.getElementById('remember-checkbox')?.checked;
             let valid = true;
 
             if (!isValidEmail(email)) { showError('err-login-email', true); valid = false; }
@@ -471,12 +449,13 @@
             setLoading('btn-login', true);
 
             try {
+                // Persistencia según "Recordarme"
+                await setPersistence(auth, remember ? browserLocalPersistence : browserSessionPersistence);
                 const cred = await signInWithEmailAndPassword(auth, email, pass);
                 document.getElementById('diag-panel').classList.remove('show');
                 await loadProfileAndRedirect(cred.user);
             } catch (err) {
                 console.error('Login error:', err.code, err.message);
-                // Mostrar panel de diagnóstico con código real
                 document.getElementById('diag-error-code').textContent = err.code || err.message;
                 document.getElementById('diag-panel').classList.add('show');
                 document.getElementById('firebase-login-msg').textContent = translateError(err.code);
@@ -485,9 +464,9 @@
             }
         };
 
-        // ══════════════════════════════════════════════════
-        //  REGISTRO con Firebase Auth — Email + Contraseña
-        // ══════════════════════════════════════════════════
+        // ══════════════════════════════════════════════════════
+        //  REGISTRO con Email + Contraseña
+        // ══════════════════════════════════════════════════════
         window.handleRegister = async function(e) {
             e.preventDefault();
             clearErrors();
@@ -501,9 +480,9 @@
 
             if (name.length < 3)      { showError('err-reg-name',    true); valid = false; }
             if (!isValidEmail(email)) { showError('err-reg-email',   true); valid = false; }
-            if (!country)             { showError('err-reg-country',  true); valid = false; }
+            if (!country)             { showError('err-reg-country', true); valid = false; }
             if (pass.length < 8)      { showError('err-reg-pass',    true); valid = false; }
-            if (!terms)               { showError('err-terms',        true); valid = false; }
+            if (!terms)               { showError('err-terms',       true); valid = false; }
             if (!valid) return;
 
             setLoading('btn-register', true);
@@ -512,22 +491,15 @@
                 const cred = await createUserWithEmailAndPassword(auth, email, pass);
                 await updateProfile(cred.user, { displayName: name });
                 await setDoc(doc(db, 'users', cred.user.uid), {
-                    uid:       cred.user.uid,
-                    name,
-                    email,
-                    country,
-                    points:    5,
-                    level:     'Rookie',
-                    status:    'online',
-                    bio:       '',
-                    avatar:    null,
+                    uid: cred.user.uid, name, email, country,
+                    points: 5, level: 'Rookie', status: 'online',
+                    bio: '', avatar: null,
                     inventory: ['stadium_frame'],
                     equipped:  { frame: 'stadium-frame' },
                     createdAt: serverTimestamp()
                 });
                 document.getElementById('diag-panel').classList.remove('show');
                 await loadProfileAndRedirect(cred.user);
-
             } catch (err) {
                 console.error('Register error:', err.code, err.message);
                 document.getElementById('diag-error-code').textContent = err.code || err.message;
@@ -538,19 +510,17 @@
             }
         };
 
-        // ══════════════════════════════════════════════════
-        //  LOGIN con Google
-        // ══════════════════════════════════════════════════
+        // ══════════════════════════════════════════════════════
+        //  LOGIN con Google / Facebook
+        // ══════════════════════════════════════════════════════
         window.socialLogin = async function(provider) {
-            if (provider !== 'Google') {
-                showToast('Facebook login próximamente 🚧', 'error');
-                return;
-            }
-            try {
-                const googleProvider = new GoogleAuthProvider();
-                const cred = await signInWithPopup(auth, googleProvider);
+            let authProvider;
+            if      (provider === 'Google')   authProvider = new GoogleAuthProvider();
+            else if (provider === 'Facebook') authProvider = new FacebookAuthProvider();
+            else { showToast('Proveedor no soportado', 'error'); return; }
 
-                // Si es un usuario nuevo, crear perfil en Firestore
+            try {
+                const cred = await signInWithPopup(auth, authProvider);
                 const snap = await getDoc(doc(db, 'users', cred.user.uid));
                 if (!snap.exists()) {
                     await setDoc(doc(db, 'users', cred.user.uid), {
@@ -558,31 +528,43 @@
                         name:      cred.user.displayName || 'Turista',
                         email:     cred.user.email,
                         country:   '🇲🇽 México',
-                        points:    5,
-                        level:     'Rookie',
-                        status:    'online',
-                        bio:       '',
-                        avatar:    cred.user.photoURL || null,
+                        points:    5, level: 'Rookie', status: 'online',
+                        bio: '', avatar: cred.user.photoURL || null,
                         inventory: ['stadium_frame'],
                         equipped:  { frame: 'stadium-frame' },
                         createdAt: serverTimestamp()
                     });
                 }
-
                 await loadProfileAndRedirect(cred.user);
-
             } catch (err) {
-                console.error('Google login error:', err.code);
+                console.error('Social login error:', err.code);
                 showToast(translateError(err.code), 'error');
             }
         };
 
-        // ── Si ya hay sesión activa, redirigir directo ───
+        // ══════════════════════════════════════════════════════
+        //  RESTABLECER CONTRASEÑA
+        // ══════════════════════════════════════════════════════
+        window.resetPassword = async function() {
+            const email = document.getElementById('login-email').value.trim();
+            if (!isValidEmail(email)) {
+                showToast('Ingresa tu correo en el campo de arriba para restablecer la contraseña', 'error');
+                document.getElementById('login-email').focus();
+                return;
+            }
+            try {
+                await sendPasswordResetEmail(auth, email);
+                showToast('📧 Enlace de restablecimiento enviado a ' + email, 'success');
+            } catch (err) {
+                showToast(translateError(err.code), 'error');
+            }
+        };
+
+        // ── Si ya hay sesión activa válida, redirigir ──────────────────
         onAuthStateChanged(auth, (user) => {
-            if (user && sessionStorage.getItem('fifa_user')) {
-                // Ya autenticado — no redirigir automáticamente para evitar loops
-                // Solo mostrar indicador
-                console.log('✅ Sesión activa:', user.email);
+            if (user && (sessionStorage.getItem('fifa_user') || localStorage.getItem('fifa_user_persist'))) {
+                console.log('✅ Sesión activa detectada:', user.email);
+                // No redirigir automáticamente — el usuario puede querer hacer logout y entrar con otra cuenta
             }
         });
 
