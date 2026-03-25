@@ -7,6 +7,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="responsive_fix.css">
 </head>
 <body>
 
@@ -200,13 +201,19 @@
                 <span class="task-count" id="task-count">0 de 0 completadas</span>
             </div>
             <div class="add-task-bar">
-                <input type="text" id="new-task-input" placeholder="Nueva tarea para el grupo..." onkeypress="if(event.key==='Enter')addTask()">
-                <select id="task-assignee">
+                <input type="text" id="new-task-input" placeholder="Nueva tarea..." onkeypress="if(event.key==='Enter')addTask()">
+                <select id="task-type" title="Tipo de tarea">
+                    <option value="group">👥 Grupal</option>
+                    <option value="personal">👤 Personal</option>
+                </select>
+                <select id="task-assignee" title="Asignar a">
                     <option value="">Todos</option>
                     <option>Turista 1</option><option>Turista 23</option>
                     <option>Guía Carlos</option><option>María González</option>
                 </select>
-                <button class="btn-add-task" onclick="addTask()"><i class="fas fa-plus"></i> <span class="btn-text-resp">Agregar</span></button>
+                <button class="btn-add-task" onclick="addTask();updateTaskAssigneeList()">
+                    <i class="fas fa-plus"></i> <span class="btn-text-resp">Agregar</span>
+                </button>
             </div>
             <div class="task-list" id="task-list">
                 <div class="task-item" data-id="1">
@@ -215,6 +222,7 @@
                         <label for="task1" class="task-label">Comprar boletos del metro 🚇</label>
                     </div>
                     <div class="task-meta">
+                        <span class="task-type-badge group-badge"><i class="fas fa-users"></i> Grupal</span>
                         <span class="task-assignee-badge"><i class="fas fa-user"></i> Turista 1</span>
                         <button class="task-del" onclick="deleteTask(1)"><i class="fas fa-trash"></i></button>
                     </div>
@@ -225,6 +233,7 @@
                         <label for="task2" class="task-label">Reservar restaurante cerca de la Macroplaza 🍽️</label>
                     </div>
                     <div class="task-meta">
+                        <span class="task-type-badge group-badge"><i class="fas fa-users"></i> Grupal</span>
                         <span class="task-assignee-badge"><i class="fas fa-user"></i> Todos</span>
                         <button class="task-del" onclick="deleteTask(2)"><i class="fas fa-trash"></i></button>
                     </div>
@@ -235,6 +244,7 @@
                         <label for="task3" class="task-label">Confirmar horario del partido ✅</label>
                     </div>
                     <div class="task-meta">
+                        <span class="task-type-badge personal-badge"><i class="fas fa-user"></i> Personal</span>
                         <span class="task-assignee-badge"><i class="fas fa-user"></i> Turista 23</span>
                         <button class="task-del" onclick="deleteTask(3)"><i class="fas fa-trash"></i></button>
                     </div>
@@ -872,6 +882,7 @@
 <div class="toast-container" id="toast-container"></div>
 
 <!-- SCRIPTS del servidor y Firestore -->
+<!--<script src="server-config.js"></script>  -->
 <script>
     window.__FIFA_SERVER__ = 'https://standup-fifa-poi.onrender.com';
     console.log('🌐 Servidor:', window.__FIFA_SERVER__);
@@ -883,6 +894,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
 <script src="videocall_enhanced.js"></script>
 <!--app principal-->
+<script src="tasks_enhanced.js"></script>
 <script src="app.js"></script>
 
  <script src="emoji store.js"></script>
