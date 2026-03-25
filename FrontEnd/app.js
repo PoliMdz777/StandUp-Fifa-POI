@@ -145,15 +145,21 @@ function hydrateUI() {
 
 // ─── SOCKET CONNECTION ───────────────────────────────────
 let socket = null;
+// Despertar Render antes de conectar Socket.io
+fetch('https://standup-fifa-poi.onrender.com/api/users')
+    .then(() => console.log('✅ Render despierto'))
+    .catch(() => console.warn('⚠️ Render no responde'));
 try {
 //    socket = io('http://localhost:3000', { reconnectionAttempts: 5 });
 //AHORA EL CLIENTE USA LA URL DE SERVER-config.JS
         //socket = io(window.__FIFA_SERVER__ || 'http://localhost:3000', 
-            const _serverUrl = window.__FIFA_SERVER__ || 'https://standup-fifa-poi.onrender.com';
-socket = io(_serverUrl,{
-            reconnectionAttempts: 5,
-            transports: ['websocket', 'polling']
-        });
+          const _serverUrl = 'https://standup-fifa-poi.onrender.com';
+socket = io(_serverUrl, {
+    reconnectionAttempts: 5,
+    transports: ['polling', 'websocket'],  // polling primero — más compatible con Render
+    timeout: 20000,
+    forceNew: true
+});
 
     socket.on('connect', () => {
         console.log('✅ Socket conectado:', socket.id);
@@ -231,33 +237,16 @@ socket = io(_serverUrl,{
         }
     });
 
-    socket.on('call_accepted', async (data) => {
-        console.log('📹 Llamada aceptada, peerId remoto:', data.peerId);
-        // Esperar a que localStream esté disponible (máx 5 seg)
-        let intentos = 0;
-        while (!localStream && intentos < 25) {
-            await new Promise(r => setTimeout(r, 200));
-            intentos++;
-        }
-        if (!myPeer || !localStream) {
-            showToast('Error: no se pudo obtener cámara para la llamada', 'error');
-            endCall();
-            return;
-        }
-        try {
+    socket.on('call_accepted', (data) => {
+        // El otro usuario aceptó — hacer la llamada PeerJS real
+        if (myPeer && localStream) {
             const call = myPeer.call(data.peerId, localStream);
             currentCall = call;
             call.on('stream', (remoteStream) => {
-                console.log('📹 Stream remoto recibido (saliente)');
                 showRemoteStream(remoteStream);
                 document.getElementById('vc-connecting').style.display = 'none';
             });
             call.on('close', () => endCall());
-            call.on('error', (e) => { console.error('Call error:', e); endCall(); });
-        } catch(e) {
-            console.error('Error al llamar:', e);
-            showToast('Error al conectar la videollamada', 'error');
-            endCall();
         }
     });
 
@@ -269,43 +258,6 @@ socket = io(_serverUrl,{
     socket.on('call_ended', () => {
         showToast('📵 El otro usuario colgó', 'info');
         endCall();
-    });
-
-    // ── Recibir tareas creadas por otros miembros del grupo ──
-    socket.on('task_created', (data) => {
-        // No agregar si ya existe
-        if (document.querySelector(`[data-task-socket="${data.taskLocalId}_${data.senderId}"]`)) return;
-        taskIdCounter++;
-        const id   = taskIdCounter;
-        const list = document.getElementById('task-list');
-        if (!list) return;
-        const item = document.createElement('div');
-        item.className = 'task-item';
-        item.dataset.id = id;
-        item.dataset.taskSocket = `${data.taskLocalId}_${data.senderId}`;
-        item.innerHTML = `
-            <div class="task-check-wrap">
-                <input type="checkbox" id="task${id}" onchange="toggleTask(${id},this)">
-                <label for="task${id}" class="task-label">${escHtml(data.text)}</label>
-            </div>
-            <div class="task-meta">
-                <span class="task-assignee-badge"><i class="fas fa-user"></i> ${escHtml(data.assignee||'Todos')}</span>
-                <button class="task-del" onclick="deleteTask(${id})"><i class="fas fa-trash"></i></button>
-            </div>`;
-        list.appendChild(item);
-        updateTaskCount();
-        // Notificar si no está en la pestaña de tareas
-        if (document.getElementById('tasks-section').style.display === 'none') {
-            const notif = document.getElementById('tasks-notif');
-            if (notif) { notif.style.display='flex'; notif.textContent=String((parseInt(notif.textContent)||0)+1); }
-        }
-        showToast(`📋 ${data.senderId} agregó tarea: "${data.text}"`, 'info');
-    });
-
-    // ── Recibir tarea completada por otro miembro ──
-    socket.on('task_done', (data) => {
-        if (data.userId === currentUser.name) return; // ya lo manejamos localmente
-        showToast(`✅ ${data.userId} completó una tarea`, 'info');
     });
 
 } catch(e) {
@@ -868,6 +820,173 @@ function sendEmail() {
     document.getElementById('badge-email')?.classList.add('unlocked');
 }
 
+// ─── VIDEO CALL ───────────────────────────────────────────
+let vcTimerInterval = null;
+let vcSeconds       = 0;
+let localStream     = null;
+let currentCall     = null;   // objeto PeerJS call activo
+let myPeer          = null;   // instancia PeerJS del usuario local
+let micActive       = true;
+let camActive       = true;
+
+// ── INICIALIZAR PEERJS ────────────────────────────────────
+function initPeer() {
+    if (myPeer) return;
+
+    const safePeerId = (currentUser.name || 'turista')
+        .toLowerCase()
+        .replace(/\s+/g, '_')
+        .replace(/[^a-z0-9_]/g, '')
+        + '_' + Date.now();
+
+    const serverUrl = window.__FIFA_SERVER__ || 'http://localhost:3000';
+    const parsed    = new URL(serverUrl);
+
+    myPeer = new Peer(safePeerId, {
+        host:   parsed.hostname,
+        port:   parsed.port || (parsed.protocol === 'https:' ? 443 : 80),
+        path:   '/peerjs',
+        secure: parsed.protocol === 'https:',
+        debug:  1
+    });
+
+    myPeer.on('open', (id) => {
+        console.log('📹 PeerJS listo. Mi Peer ID:', id);
+        if (socket?.connected) {
+            socket.emit('register_peer_id', { userId: currentUser.name, peerId: id });
+        }
+    });
+
+    // Llamada ENTRANTE — el receptor responde aquí
+    myPeer.on('call', (call) => {
+        navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+            .then((stream) => {
+                localStream = stream;
+                currentCall = call;
+                call.answer(stream);
+                call.on('stream', (remoteStream) => { showRemoteStream(remoteStream); });
+                call.on('close', () => { endCall(); });
+                openModal('videocall-modal');
+                document.getElementById('vc-connecting').style.display = 'none';
+                document.getElementById('local-stream').srcObject = stream;
+                startCallTimer();
+                showToast('📹 Llamada entrante conectada', 'success');
+                awardPoints(200, 'Realizaste una videollamada');
+            })
+            .catch((err) => {
+                console.error('❌ Cámara/mic denegados:', err);
+                showToast('Activa cámara y micrófono en tu navegador', 'error');
+            });
+    });
+
+    myPeer.on('error', (err) => {
+        console.warn('⚠️ PeerJS error:', err.type);
+        if (err.type === 'peer-unavailable') {
+            showToast('El usuario no está disponible para videollamada', 'error');
+            closeModal('videocall-modal');
+        }
+    });
+}
+
+function showRemoteStream(remoteStream) {
+    const remoteVideo = document.getElementById('remote-stream');
+    const placeholder = document.getElementById('vc-placeholder');
+    if (remoteVideo) { remoteVideo.srcObject = remoteStream; remoteVideo.style.display = 'block'; }
+    if (placeholder) placeholder.style.display = 'none';
+    startCallTimer();
+    showToast('📹 Videollamada conectada', 'success');
+    awardPoints(200, 'Realizaste una videollamada');
+    document.getElementById('badge-vc')?.classList.add('unlocked');
+}
+
+function openVideoCall() {
+    if (currentChat.type !== 'private') {
+        showToast('Las videollamadas son solo en chats privados', 'info');
+        return;
+    }
+    openModal('videocall-modal');
+    document.getElementById('vc-connecting').style.display = 'block';
+    document.getElementById('vc-timer').textContent = '00:00';
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+        showToast('Tu navegador no soporta videollamadas', 'error');
+        closeModal('videocall-modal');
+        return;
+    }
+
+    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+        .then((stream) => {
+            localStream = stream;
+            document.getElementById('local-stream').srcObject = stream;
+            if (socket?.connected) {
+                socket.emit('call_user', {
+                    callerId:   currentUser.name,
+                    callerName: currentUser.name,
+                    receiverId: currentChat.id,
+                    peerId:     myPeer?.id || ''
+                });
+                showToast(`📞 Llamando a ${currentChat.name}...`, 'info');
+            } else {
+                // Modo demo sin servidor
+                setTimeout(() => {
+                    document.getElementById('vc-connecting').style.display = 'none';
+                    startCallTimer();
+                    showToast('📹 Videollamada (modo demo local)', 'success');
+                    awardPoints(200, 'Realizaste una videollamada');
+                }, 2000);
+            }
+        })
+        .catch((err) => {
+            console.error('❌ Acceso denegado a cámara/mic:', err);
+            showToast('Activa el permiso de cámara y micrófono en tu navegador', 'error');
+            closeModal('videocall-modal');
+        });
+}
+
+function startCallTimer() {
+    vcSeconds = 0;
+    clearInterval(vcTimerInterval);
+    vcTimerInterval = setInterval(() => {
+        vcSeconds++;
+        const m = String(Math.floor(vcSeconds / 60)).padStart(2, '0');
+        const s = String(vcSeconds % 60).padStart(2, '0');
+        document.getElementById('vc-timer').textContent = `${m}:${s}`;
+    }, 1000);
+}
+
+function endCall() {
+    clearInterval(vcTimerInterval);
+    if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
+    if (currentCall) { currentCall.close(); currentCall = null; }
+    const localVid  = document.getElementById('local-stream');
+    const remoteVid = document.getElementById('remote-stream');
+    if (localVid)  localVid.srcObject = null;
+    if (remoteVid) { remoteVid.srcObject = null; remoteVid.style.display = 'none'; }
+    const placeholder = document.getElementById('vc-placeholder');
+    if (placeholder) placeholder.style.display = 'flex';
+    if (socket?.connected && currentChat.id) socket.emit('call_ended', { receiverId: currentChat.id });
+    document.getElementById('videocall-modal')?.classList.remove('open');
+    showToast('Llamada finalizada', 'info');
+}
+
+function toggleMic(btn) {
+    micActive = !micActive;
+    btn.classList.toggle('muted', !micActive);
+    btn.innerHTML = micActive ? '<i class="fas fa-microphone"></i>' : '<i class="fas fa-microphone-slash"></i>';
+    if (localStream) localStream.getAudioTracks().forEach(t => t.enabled = micActive);
+}
+
+function toggleCam(btn) {
+    camActive = !camActive;
+    btn.classList.toggle('muted', !camActive);
+    btn.innerHTML = camActive ? '<i class="fas fa-video"></i>' : '<i class="fas fa-video-slash"></i>';
+    if (localStream) localStream.getVideoTracks().forEach(t => t.enabled = camActive);
+}
+function toggleFullscreen() {
+    const el = document.querySelector('.videocall-ui');
+    if (!document.fullscreenElement) el.requestFullscreen?.().catch(()=>{});
+    else document.exitFullscreen?.().catch(()=>{});
+}
 
 // ─── TASKS ────────────────────────────────────────────────
 function addTask() {
@@ -878,7 +997,6 @@ function addTask() {
     taskIdCounter++;
     const id   = taskIdCounter;
     const list = document.getElementById('task-list');
-
     const item = document.createElement('div');
     item.className = 'task-item';
     item.dataset.id = id;
@@ -895,44 +1013,16 @@ function addTask() {
     input.value = '';
     updateTaskCount();
     showToast('✅ Tarea agregada al grupo','success');
-
-    // Sincronizar vía Socket.io con todos los miembros del grupo
-    const groupId = currentChat.type === 'group' ? currentChat.id : 'grupo_tour';
+    // Notify task in chat
     if (socket?.connected) {
-        socket.emit('task_created', {
-            groupId,
-            text,
-            assignee,
-            senderId: currentUser.name,
-            taskLocalId: id
-        });
+        socket.emit('send_group_message', { groupId:currentChat.id, senderId:currentUser.name, message:`📋 Nueva tarea: "${text}" → ${assignee}`, type:'text', time:new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) });
     }
-
-    // Guardar en Firestore
-    if (window.db_saveTask) {
-        window.db_saveTask(groupId, { text, assignee, creator: currentUser.name });
-    }
-
-    // Notificar en el chat del grupo
-    if (socket?.connected && currentChat.type === 'group') {
-        socket.emit('send_group_message', {
-            groupId: currentChat.id,
-            senderId: currentUser.name,
-            message: `📋 Nueva tarea: "${text}" → ${assignee}`,
-            type: 'text',
-            time: new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})
-        });
-    }
-
-    // Badge de notificación en Tareas
+    // Tasks notif badge
     const tasksNotif = document.getElementById('tasks-notif');
-    if (document.getElementById('tasks-section').style.display === 'none') {
+    if (document.getElementById('tasks-section').style.display==='none') {
         tasksNotif.style.display = 'flex';
         tasksNotif.textContent = String((parseInt(tasksNotif.textContent)||0)+1);
     }
-
-    // Puntos por crear tarea
-    awardPoints(5, 'Creaste una tarea grupal');
 }
 function toggleTask(id, checkbox) {
     const item = document.querySelector(`.task-item[data-id="${id}"]`);
@@ -941,22 +1031,9 @@ function toggleTask(id, checkbox) {
     updateTaskCount();
     if (checkbox.checked) {
         tasksCompleted++;
-        showToast('🎉 ¡Tarea completada! +75 pts','success');
-        awardPoints(75, 'Completaste una tarea grupal');
-        // Desbloquear logro después de 3 tareas
-        if (tasksCompleted >= 3) {
-            document.getElementById('badge-tasks')?.classList.add('unlocked');
-            showToast('🏅 ¡Logro desbloqueado: Eficiente!', 'success');
-        }
-        // Sincronizar con el grupo vía socket
-        const groupId = currentChat.type === 'group' ? currentChat.id : 'grupo_tour';
-        if (socket?.connected) {
-            socket.emit('task_done', {
-                groupId,
-                taskLocalId: id,
-                userId: currentUser.name
-            });
-        }
+        showToast('🎉 Tarea completada!','success');
+        awardPoints(75,'Completaste una tarea');
+        if (tasksCompleted >= 3) document.getElementById('badge-tasks')?.classList.add('unlocked');
     }
 }
 function deleteTask(id) {
@@ -1200,6 +1277,8 @@ document.addEventListener('DOMContentLoaded', () => {
     updatePtsDisplay();
     updateStoreButtons();
 
+     setTimeout(loadRealUsers, 1500); // espera que Firestore cargue
+
     // Listeners seguros: el DOM ya existe aquí
     const encToggle = document.getElementById('encryption-toggle');
     if (encToggle) {
@@ -1242,78 +1321,66 @@ function logoutApp() {
 }
 window.logoutApp = logoutApp;
 
-function confirmCreateGroup() {
-    const groupNameInput = document.getElementById('new-group-name');
-    const checkboxes = document.querySelectorAll('#group-users-selection input[type="checkbox"]:checked');
-    
-    // Regla de Negocio 2: Mínimo 3 integrantes (El creador + 2 seleccionados)
-    if (checkboxes.length < 2) {
-        showToast('Debes seleccionar al menos 2 personas para crear un grupo (Mínimo 3 incluyéndote a ti).', 'error');
-        return;
-    }
-
-    if (!groupNameInput.value.trim()) {
-        showToast('El grupo debe tener un nombre.', 'error');
-        return;
-    }
-
-    const selectedUsers = Array.from(checkboxes).map(cb => cb.value);
-    
-    socket.emit('create_group', {
-        name: groupNameInput.value.trim(),
-        members: [currentUsername, ...selectedUsers], // currentUsername es el administrador
-        creator: currentUsername 
-    });
-
-    closeModal('create-group-modal');
-    showToast(`Grupo ${groupNameInput.value} creado.`, 'success');
-}
-
 //  CARGA DINÁMICA DE USUARIOS REALES DESDE FIREBASE
 
 async function loadRealUsers() {
-    const list = document.getElementById('contacts-list');
-    const selector = document.getElementById('group-users-selection');
-    
     try {
-        // Limpiar inmediatamente los usuarios predeterminados para evitar confusiones
-        if (list) list.innerHTML = '<p style="color:var(--muted); padding:10px; font-size:0.9rem;">Cargando usuarios desde la base de datos...</p>';
+        // Esperar a que firestore_integration.js cargue
+        let intentos = 0;
+        while (!window.__FIRESTORE_READY__ && intentos < 20) {
+            await new Promise(r => setTimeout(r, 300));
+            intentos++;
+        }
+
+        // Leer usuarios directo de Firestore (sin necesitar serviceAccountKey)
+        const { getFirestore, collection, getDocs } = await import(
+            'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+        );
+        const { initializeApp, getApps } = await import(
+            'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js'
+        );
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBQCxLixqM8qDquL3-xkMjkyupBlcgl2ek",
+            authDomain: "standup-fifa-5f423.firebaseapp.com",
+            projectId: "standup-fifa-5f423",
+            storageBucket: "standup-fifa-5f423.appspot.com",
+            messagingSenderId: "823333890415",
+            appId: "1:112092859394:web:acaf19a3ed635667d3ab1b"
+        };
+
+        const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+        const db  = getFirestore(app);
+        const snap = await getDocs(collection(db, 'users'));
+        const users = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+        const list = document.getElementById('contacts');
+        const selector = document.querySelector('.user-selector');
         if (selector) selector.innerHTML = '';
 
-        let attempts = 0;
-        // Esperamos máximo 8 segundos a que Firestore cargue
-        while (!window.__FIRESTORE_READY__ && attempts < 40) {
-            await new Promise(r => setTimeout(r, 200));
-            attempts++;
-        }
-
-        if (!window.__FIRESTORE_READY__) {
-            throw new Error("No se pudo conectar con Firebase. Revisa tu consola.");
-        }
-
-        const users = await window.db_getAllUsers();
-        if (list) list.innerHTML = ''; // Limpiar el "Cargando..."
-
         users.forEach(u => {
-            if (u.name === currentUsername) return; // No mostrarme a mí mismo
+            if (u.name === currentUser.name) return;
 
-            if (list) {
+            // ── Agregar a lista de contactos ──────────────
+            if (!document.querySelector(`[data-chat-id="${u.name}"]`)) {
                 const li = document.createElement('li');
                 li.className = 'contact-item';
-                li.onclick = () => openChat(u.name, 'private', u.avatar, u.status);
+                li.dataset.chatId = u.name;
+                li.onclick = () => selectChat('private', u.name, u.name, 'user', li);
                 li.innerHTML = `
                     <div class="contact-avatar">
-                        <img src="${u.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${u.name}`}" alt="${u.name}">
-                        <div class="status-indicator ${u.status === 'online' ? 'status-online' : 'status-offline'}"></div>
+                        <img src="${u.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${u.name}`}" alt="">
+                        <span class="status-indicator ${u.status || 'offline'}" id="status-${u.name}"></span>
                     </div>
                     <div class="contact-info">
                         <span class="contact-name">${escHtml(u.name)}</span>
-                        <span class="contact-preview" id="preview-${u.name}">${escHtml(u.country || 'Sin país')}</span>
+                        <span class="contact-preview" id="preview-${u.name}">${escHtml(u.country || '')}</span>
                     </div>
                     <span class="unread-badge" id="badge-${u.name}" style="display:none">0</span>`;
                 list.appendChild(li);
             }
 
+            // ── Agregar al modal "Crear Grupo" ────────────
             if (selector) {
                 const item = document.createElement('div');
                 item.className = 'user-check-item';
@@ -1330,13 +1397,12 @@ async function loadRealUsers() {
             }
         });
 
-        if (list && list.children.length === 0) {
-            list.innerHTML = '<p style="color:var(--muted); padding:10px;">No hay otros usuarios registrados aún.</p>';
+        if (selector && selector.children.length === 0) {
+            selector.innerHTML = '<p style="color:var(--muted);font-size:.82rem;padding:10px">No hay otros usuarios registrados aún.</p>';
         }
 
     } catch(e) {
-        console.error('❌ Error cargando usuarios reales:', e);
-        if (list) list.innerHTML = `<p style="color:var(--danger); padding:10px; font-size:0.85rem;">Error al cargar: ${e.message}</p>`;
+        console.warn('No se pudieron cargar usuarios desde Firestore:', e);
     }
 }
 window.loadRealUsers = loadRealUsers;
