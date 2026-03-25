@@ -45,6 +45,7 @@
 // ── Leer usuario ya validado ──────────────────────────────
 const sessionData = sessionStorage.getItem('fifa_user');
 let currentUser   = JSON.parse(sessionData);
+window.currentUser = currentUser; // exponer para videocall_enhanced.js
 
 // Migración para usuarios antiguos (sin inventory/equipped)
 if (!currentUser.inventory) currentUser.inventory = [];
@@ -61,6 +62,7 @@ function saveUser() {
     const json = JSON.stringify(currentUser);
     sessionStorage.setItem('fifa_user', json);
     localStorage.setItem('fifa_user_persist', json);
+    window.currentUser = currentUser; // mantener sync con videocall_enhanced.js
 }
 
 // ─── LOCAL STORAGE HELPERS ───────────────────────────────
@@ -115,14 +117,14 @@ function hydrateUI() {
     document.getElementById('sidebar-username').textContent    = currentUser.name  || 'Turista 1';
     document.getElementById('sidebar-level').textContent      = currentUser.level  || 'Explorer';
     document.getElementById('card-username').textContent      = (currentUser.name || 'TURISTA').toUpperCase().substring(0,10);
-    document.getElementById('card-pts').textContent           = currentUser.points || 1500;
+    document.getElementById('card-pts').textContent           = currentUser.points || 0;
     document.getElementById('card-nation').textContent        = currentUser.country || '🇲🇽 México';
-    document.getElementById('pts-display').innerHTML          = `<i class="fas fa-coins"></i> ${currentUser.points||1500} pts`;
+    document.getElementById('pts-display').innerHTML          = `<i class="fas fa-coins"></i> ${currentUser.points||0} pts`;
     document.getElementById('level-name').textContent         = currentUser.level  || 'Explorer';
     document.getElementById('profile-name-display').textContent  = currentUser.name || 'Turista 1';
     document.getElementById('profile-email-display').textContent = currentUser.email || 'turista@demo.com';
     document.getElementById('profile-level-tag').textContent  = currentUser.level  || 'Explorer';
-    document.getElementById('profile-pts-tag').textContent    = `${currentUser.points||1500} pts`;
+    document.getElementById('profile-pts-tag').textContent    = `${currentUser.points||0} pts`;
     if (currentUser.avatar) {
         document.getElementById('user-avatar').src          = currentUser.avatar;
         document.getElementById('profile-avatar-img').src   = currentUser.avatar;
@@ -140,7 +142,7 @@ function hydrateUI() {
     const pstatus = document.getElementById('prof-status');
     if (pstatus) pstatus.value = currentUser.status || 'online';
     updateStatusDot(currentUser.status || 'online');
-    updateLevelUI(currentUser.points || 1500);
+    updateLevelUI(currentUser.points || 0);
 }
 
 // ─── SOCKET CONNECTION ───────────────────────────────────
@@ -225,12 +227,19 @@ socket = io(_serverUrl, {
     // ── VIDEOLLAMADA: señalización via Socket.io ────────────
     socket.on('incoming_call', (data) => {
         const accept = confirm(`📹 Llamada entrante de ${data.callerName}. ¿Aceptar?`);
-        if (accept) {
-            socket.emit('call_accepted', {
-                callerId: data.callerId,
-                peerId:   myPeer?.id || ''
-            });
-            // myPeer.on('call') en initPeer() maneja el resto
+         if (accept) {
+        // Esperar a que myPeer esté listo antes de enviar call_accepted
+        const waitForPeerId = () => {
+            if (window.myPeerId) {
+                socket.emit('call_accepted', {
+                    callerId: data.callerId,
+                    peerId: window.myPeerId
+                });
+            } else {
+                setTimeout(waitForPeerId, 100);
+            }
+            };
+        waitForPeerId();
         } else {
             socket.emit('call_rejected', { callerId: data.callerId });
             showToast('Llamada rechazada', 'info');
@@ -239,7 +248,7 @@ socket = io(_serverUrl, {
 
     socket.on('call_accepted', (data) => {
         // El otro usuario aceptó — hacer la llamada PeerJS real
-        if (myPeer && localStream) {
+        if (myPeer && localStream && data.peerId) {
             const call = myPeer.call(data.peerId, localStream);
             currentCall = call;
             call.on('stream', (remoteStream) => {
@@ -247,7 +256,10 @@ socket = io(_serverUrl, {
                 document.getElementById('vc-connecting').style.display = 'none';
             });
             call.on('close', () => endCall());
-        }
+        } else {
+        console.warn('No se pudo iniciar llamada: peerId o stream faltante');
+        endCall();
+    }
     });
 
     socket.on('call_rejected', () => {
@@ -266,9 +278,10 @@ socket = io(_serverUrl, {
 
 // ─── CHAT STATE ───────────────────────────────────────────
 let currentChat   = { type:'group', id:'grupo_tour', name:'Grupo Tour Estadio', avatarType:'group' };
+window.currentChat = currentChat; // exponer para videocall_enhanced.js
 let pendingFile   = null;
 let pendingFileUrl = null;
-let userPoints    = currentUser.points || 1500;
+let userPoints    = currentUser.points || 0; // usar valor real de Firebase
 let taskIdCounter = 10;
 let tasksCompleted = 0;
 
@@ -300,6 +313,7 @@ function closeSidebar() {
 // ─── CHAT SELECTION ──────────────────────────────────────
 function selectChat(type, id, name, avatarType, liEl) {
     currentChat = { type, id, name, avatarType };
+    window.currentChat = currentChat; // sincronizar con videocall_enhanced.js
     document.getElementById('current-chat-name').textContent = name;
     document.querySelectorAll('.contact-item').forEach(i => i.classList.remove('active-chat'));
     if (liEl) liEl.classList.add('active-chat');
@@ -768,6 +782,8 @@ function changePassword() {
     showToast('🔐 Contraseña actualizada','success');
 }
 
+
+
 // ─── EMAIL ────────────────────────────────────────────────
 function toggleCustomEmail(val) {
     document.getElementById('email-custom-wrap').style.display = val==='custom' ? 'block' : 'none';
@@ -818,174 +834,6 @@ function sendEmail() {
     showToast(`📧 Correo enviado a ${to}`,'success');
     awardPoints(75,'Enviaste un correo electrónico');
     document.getElementById('badge-email')?.classList.add('unlocked');
-}
-
-// ─── VIDEO CALL ───────────────────────────────────────────
-let vcTimerInterval = null;
-let vcSeconds       = 0;
-let localStream     = null;
-let currentCall     = null;   // objeto PeerJS call activo
-let myPeer          = null;   // instancia PeerJS del usuario local
-let micActive       = true;
-let camActive       = true;
-
-// ── INICIALIZAR PEERJS ────────────────────────────────────
-function initPeer() {
-    if (myPeer) return;
-
-    const safePeerId = (currentUser.name || 'turista')
-        .toLowerCase()
-        .replace(/\s+/g, '_')
-        .replace(/[^a-z0-9_]/g, '')
-        + '_' + Date.now();
-
-    const serverUrl = window.__FIFA_SERVER__ || 'http://localhost:3000';
-    const parsed    = new URL(serverUrl);
-
-    myPeer = new Peer(safePeerId, {
-        host:   parsed.hostname,
-        port:   parsed.port || (parsed.protocol === 'https:' ? 443 : 80),
-        path:   '/peerjs',
-        secure: parsed.protocol === 'https:',
-        debug:  1
-    });
-
-    myPeer.on('open', (id) => {
-        console.log('📹 PeerJS listo. Mi Peer ID:', id);
-        if (socket?.connected) {
-            socket.emit('register_peer_id', { userId: currentUser.name, peerId: id });
-        }
-    });
-
-    // Llamada ENTRANTE — el receptor responde aquí
-    myPeer.on('call', (call) => {
-        navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-            .then((stream) => {
-                localStream = stream;
-                currentCall = call;
-                call.answer(stream);
-                call.on('stream', (remoteStream) => { showRemoteStream(remoteStream); });
-                call.on('close', () => { endCall(); });
-                openModal('videocall-modal');
-                document.getElementById('vc-connecting').style.display = 'none';
-                document.getElementById('local-stream').srcObject = stream;
-                startCallTimer();
-                showToast('📹 Llamada entrante conectada', 'success');
-                awardPoints(200, 'Realizaste una videollamada');
-            })
-            .catch((err) => {
-                console.error('❌ Cámara/mic denegados:', err);
-                showToast('Activa cámara y micrófono en tu navegador', 'error');
-            });
-    });
-
-    myPeer.on('error', (err) => {
-        console.warn('⚠️ PeerJS error:', err.type);
-        if (err.type === 'peer-unavailable') {
-            showToast('El usuario no está disponible para videollamada', 'error');
-            closeModal('videocall-modal');
-        }
-    });
-}
-
-function showRemoteStream(remoteStream) {
-    const remoteVideo = document.getElementById('remote-stream');
-    const placeholder = document.getElementById('vc-placeholder');
-    if (remoteVideo) { remoteVideo.srcObject = remoteStream; remoteVideo.style.display = 'block'; }
-    if (placeholder) placeholder.style.display = 'none';
-    startCallTimer();
-    showToast('📹 Videollamada conectada', 'success');
-    awardPoints(200, 'Realizaste una videollamada');
-    document.getElementById('badge-vc')?.classList.add('unlocked');
-}
-
-function openVideoCall() {
-    if (currentChat.type !== 'private') {
-        showToast('Las videollamadas son solo en chats privados', 'info');
-        return;
-    }
-    openModal('videocall-modal');
-    document.getElementById('vc-connecting').style.display = 'block';
-    document.getElementById('vc-timer').textContent = '00:00';
-
-    if (!navigator.mediaDevices?.getUserMedia) {
-        showToast('Tu navegador no soporta videollamadas', 'error');
-        closeModal('videocall-modal');
-        return;
-    }
-
-    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-        .then((stream) => {
-            localStream = stream;
-            document.getElementById('local-stream').srcObject = stream;
-            if (socket?.connected) {
-                socket.emit('call_user', {
-                    callerId:   currentUser.name,
-                    callerName: currentUser.name,
-                    receiverId: currentChat.id,
-                    peerId:     myPeer?.id || ''
-                });
-                showToast(`📞 Llamando a ${currentChat.name}...`, 'info');
-            } else {
-                // Modo demo sin servidor
-                setTimeout(() => {
-                    document.getElementById('vc-connecting').style.display = 'none';
-                    startCallTimer();
-                    showToast('📹 Videollamada (modo demo local)', 'success');
-                    awardPoints(200, 'Realizaste una videollamada');
-                }, 2000);
-            }
-        })
-        .catch((err) => {
-            console.error('❌ Acceso denegado a cámara/mic:', err);
-            showToast('Activa el permiso de cámara y micrófono en tu navegador', 'error');
-            closeModal('videocall-modal');
-        });
-}
-
-function startCallTimer() {
-    vcSeconds = 0;
-    clearInterval(vcTimerInterval);
-    vcTimerInterval = setInterval(() => {
-        vcSeconds++;
-        const m = String(Math.floor(vcSeconds / 60)).padStart(2, '0');
-        const s = String(vcSeconds % 60).padStart(2, '0');
-        document.getElementById('vc-timer').textContent = `${m}:${s}`;
-    }, 1000);
-}
-
-function endCall() {
-    clearInterval(vcTimerInterval);
-    if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
-    if (currentCall) { currentCall.close(); currentCall = null; }
-    const localVid  = document.getElementById('local-stream');
-    const remoteVid = document.getElementById('remote-stream');
-    if (localVid)  localVid.srcObject = null;
-    if (remoteVid) { remoteVid.srcObject = null; remoteVid.style.display = 'none'; }
-    const placeholder = document.getElementById('vc-placeholder');
-    if (placeholder) placeholder.style.display = 'flex';
-    if (socket?.connected && currentChat.id) socket.emit('call_ended', { receiverId: currentChat.id });
-    document.getElementById('videocall-modal')?.classList.remove('open');
-    showToast('Llamada finalizada', 'info');
-}
-
-function toggleMic(btn) {
-    micActive = !micActive;
-    btn.classList.toggle('muted', !micActive);
-    btn.innerHTML = micActive ? '<i class="fas fa-microphone"></i>' : '<i class="fas fa-microphone-slash"></i>';
-    if (localStream) localStream.getAudioTracks().forEach(t => t.enabled = micActive);
-}
-
-function toggleCam(btn) {
-    camActive = !camActive;
-    btn.classList.toggle('muted', !camActive);
-    btn.innerHTML = camActive ? '<i class="fas fa-video"></i>' : '<i class="fas fa-video-slash"></i>';
-    if (localStream) localStream.getVideoTracks().forEach(t => t.enabled = camActive);
-}
-function toggleFullscreen() {
-    const el = document.querySelector('.videocall-ui');
-    if (!document.fullscreenElement) el.requestFullscreen?.().catch(()=>{});
-    else document.exitFullscreen?.().catch(()=>{});
 }
 
 // ─── TASKS ────────────────────────────────────────────────
@@ -1156,14 +1004,14 @@ window.buyItem = function(itemId, cost, type, cssClass) {
     }
 
     // No poseído — verificar puntos y comprar
-    if (currentUser.points < cost) {
-        showToast('❌ No tienes suficientes puntos (necesitas ' + cost + ' pts)', 'error');
+    if (userPoints < cost) {
+        showToast('❌ No tienes suficientes puntos (necesitas ' + (cost - userPoints) + ' pts más)', 'error');
         return;
     }
-    currentUser.points -= cost;
+    userPoints -= cost;
+    currentUser.points = userPoints;
     currentUser.inventory.push(itemId);
     currentUser.equipped[type] = cssClass;
-    userPoints = currentUser.points;
     saveUser();
     updatePtsDisplay();
     updateStoreButtons();
@@ -1276,6 +1124,8 @@ document.addEventListener('DOMContentLoaded', () => {
     updateTaskCount();
     updatePtsDisplay();
     updateStoreButtons();
+    window.currentUser = currentUser; // asegurar que videocall_enhanced.js lo vea
+    window.currentChat = currentChat;
 
      setTimeout(loadRealUsers, 1500); // espera que Firestore cargue
 
