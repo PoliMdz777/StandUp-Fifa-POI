@@ -1511,44 +1511,286 @@ textarea::placeholder { color: var(--muted); }
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
 }
+/* ════════════════════════════════════════════════════════════
+   responsive_fix.css  — FIFA 2026 Tourist Hub
+   Agrega estas reglas AL FINAL de styles.css
 
-/* Corrección para que la videollamada no envíe pantalla negra al otro usuario */
-#filter-canvas, #local-stream {
-    /* En lugar de usar display: none en el JS, lo ocultamos así si es necesario */
-    opacity: 1 !important; 
-    visibility: visible !important;
-}
+   CORRECCIONES:
+   1. Videollamada: panel de filtros y controles en móvil
+   2. Tareas: tipo de tarea, badges, layout tablet
+   3. Layout general: tablet 768px, notch safety area
+   4. Tienda: tabs en pantallas pequeñas
+   ════════════════════════════════════════════════════════════ */
 
-/* Evitar que el canvas detenga el flujo WebRTC */
-canvas.video-hidden {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    opacity: 0.01;
-    pointer-events: none;
-    z-index: -1;
-}
-
-/* Fix de la altura completa para Safari / iOS y Android */
-@supports (height: 100dvh) {
-    .modal-content, .videocall-container {
-        height: 100dvh !important;
-        min-height: 100dvh !important;
+/* ── Safe area para iPhones con notch (X / 11 / 12+) ──────── */
+@supports (padding: max(0px)) {
+    .mobile-topbar {
+        padding-left:  max(16px, env(safe-area-inset-left));
+        padding-right: max(16px, env(safe-area-inset-right));
     }
-}
-
-@media (max-width: 768px) {
-    /* Hacer el cuadro de 'Tú' (cámara local) más pequeño y que no estorbe */
-    .local-video-container {
-        width: 100px;
-        height: 150px;
-        bottom: 90px; /* Arriba de los botones */
-        right: 15px;
-        border-radius: 12px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    .chat-input-area {
+        padding-bottom: max(8px, env(safe-area-inset-bottom));
     }
-    
     .vc-controls {
-        padding-bottom: env(safe-area-inset-bottom, 20px); /* iPhone notch */
+        padding-bottom: max(16px, env(safe-area-inset-bottom));
+    }
+}
+
+/* ════════════════════════════════════════════════════════════
+   TAREAS — BADGES DE TIPO (Personal / Grupal)
+   ════════════════════════════════════════════════════════════ */
+.task-type-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.68rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 10px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.personal-badge {
+    background: rgba(52, 152, 219, 0.15);
+    border: 1px solid rgba(52, 152, 219, 0.4);
+    color: #3498db;
+}
+.group-badge {
+    background: rgba(0, 201, 167, 0.12);
+    border: 1px solid rgba(0, 201, 167, 0.35);
+    color: var(--teal);
+}
+
+/* Selector de tipo de tarea */
+#task-type {
+    background: var(--input);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 0 10px;
+    font-family: inherit;
+    font-size: 0.82rem;
+    height: 38px;
+    cursor: pointer;
+    transition: border-color .2s;
+}
+#task-type:focus { outline: none; border-color: var(--teal); }
+
+/* ════════════════════════════════════════════════════════════
+   TABLET — 768px a 900px (breakpoint faltante)
+   ════════════════════════════════════════════════════════════ */
+@media (min-width: 601px) and (max-width: 900px) {
+    /* Sidebar drawer más ancho en tablet */
+    .sidebar { width: 300px; }
+
+    /* Tasks bar: mostrar en fila con wrap */
+    .add-task-bar {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    .add-task-bar input { flex: 1 1 100%; }
+    #task-type, #task-assignee { flex: 1; min-width: 120px; }
+
+    /* Rewards: dos columnas en tablet */
+    .badges-grid { grid-template-columns: repeat(4, 1fr); }
+    .store-grid  { grid-template-columns: repeat(3, 1fr); }
+
+    /* Video call controles más compactos */
+    .vc-controls { gap: 10px; }
+    .vc-btn { width: 46px; height: 46px; }
+}
+
+/* ════════════════════════════════════════════════════════════
+   MÓVIL ≤ 600px — CORRECCIONES ADICIONALES
+   ════════════════════════════════════════════════════════════ */
+@media (max-width: 600px) {
+
+    /* ── Tareas: wrap correcto en móvil ─────────────────── */
+    .add-task-bar {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+    .add-task-bar input      { grid-column: 1 / -1; }
+    .add-task-bar .btn-add-task { grid-column: 1 / -1; width: 100%; }
+
+    .task-type-badge {
+        font-size: 0.62rem;
+        padding: 2px 6px;
+    }
+    .task-meta { flex-wrap: wrap; gap: 4px; }
+
+    /* ── Video call: panel de filtros no sobresale ────────── */
+    #filter-panel {
+        min-width: unset !important;
+        width: calc(100vw - 32px) !important;
+        left: 16px !important;
+        transform: none !important;
+        bottom: 80px !important;
+    }
+
+    /* Botones de filtro en 2 columnas */
+    #filter-panel > div:first-of-type {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px !important;
+    }
+
+    /* VC controles: grid 3x2 en móvil */
+    .vc-controls {
+        display: grid !important;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+        padding: 0 16px 16px;
+        max-width: 280px;
+        margin: 0 auto;
+    }
+    .vc-btn { width: 52px; height: 52px; font-size: 1rem; }
+
+    /* Video local más pequeño en móvil */
+    .local-video {
+        width: 90px !important;
+        height: 120px !important;
+        bottom: 100px !important;
+        right: 12px !important;
+    }
+
+    /* Info bar compacta */
+    .vc-info-bar {
+        padding: 8px 14px;
+        font-size: 0.8rem;
+    }
+
+    /* ── Tienda: tabs con scroll horizontal ──────────────── */
+    .store-tabs {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        flex-wrap: nowrap !important;
+        padding-bottom: 4px;
+    }
+    .store-tabs::-webkit-scrollbar { display: none; }
+    .store-tab {
+        white-space: nowrap;
+        flex-shrink: 0;
+        font-size: 0.72rem;
+        padding: 6px 10px;
+    }
+
+    /* ── Perfil modal: scroll interno ────────────────────── */
+    .modal-body { max-height: 60vh; overflow-y: auto; }
+
+    /* ── Notif badges no se solapan ─────────────────────── */
+    .notif-badge { font-size: 0.62rem; min-width: 16px; height: 16px; }
+}
+
+/* ════════════════════════════════════════════════════════════
+   MÓVIL MUY PEQUEÑO ≤ 380px
+   ════════════════════════════════════════════════════════════ */
+@media (max-width: 380px) {
+    /* Una columna en la tienda */
+    .store-grid { grid-template-columns: repeat(2, 1fr); gap: 7px; }
+
+    /* Badges en 3 cols ajustados */
+    .badges-grid { grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .badge-icon { font-size: 1.3rem; }
+
+    /* VC controles aun más pequeños */
+    .vc-btn { width: 44px; height: 44px; font-size: 0.88rem; }
+
+    /* Barra de tareas: columna única */
+    .add-task-bar { grid-template-columns: 1fr; }
+    #task-type, #task-assignee, .btn-add-task { width: 100%; }
+}
+
+/* ════════════════════════════════════════════════════════════
+   VIDEO CALL — CORRECCIONES GENERALES (todos los breakpoints)
+   ════════════════════════════════════════════════════════════ */
+
+/* Asegura que el video local tenga z-index correcto vs canvas */
+.local-video { position: relative; overflow: hidden; }
+#local-stream  { position: relative; z-index: 1; }
+#filter-canvas { z-index: 2 !important; }
+.local-overlay { z-index: 3 !important; }
+
+/* Botón de compartir pantalla: estado activo visible */
+.vc-btn.active {
+    background: rgba(0, 201, 167, 0.2) !important;
+    border-color: var(--teal) !important;
+    color: var(--teal) !important;
+    box-shadow: 0 0 12px rgba(0, 201, 167, 0.3);
+}
+
+/* Estado "muted" en botones */
+.vc-btn.muted {
+    background: rgba(231, 76, 60, 0.18) !important;
+    border-color: rgba(231, 76, 60, 0.5) !important;
+    color: var(--danger) !important;
+}
+
+/* Indicador de llamada en espera más visible */
+.vc-connecting {
+    animation: pulse-connecting 1.5s ease-in-out infinite;
+}
+@keyframes pulse-connecting {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.5; }
+}
+
+/* ════════════════════════════════════════════════════════════
+   LANDSCAPE (horizontal) en móvil
+   ════════════════════════════════════════════════════════════ */
+@media (max-height: 500px) and (orientation: landscape) {
+    /* Chat: reducir mensaje y input */
+    .chat-messages { padding: 6px 12px; }
+    .message p { font-size: 0.82rem; }
+    .chat-input-area { padding: 4px 10px; }
+
+    /* Videollamada en landscape: controles a la derecha */
+    .videocall-ui {
+        flex-direction: row !important;
+    }
+    .remote-video { flex: 1; height: 100% !important; }
+    .vc-controls {
+        flex-direction: column !important;
+        display: flex !important;
+        height: 100%;
+        width: 60px;
+        gap: 8px;
+        padding: 8px;
+        justify-content: center;
+        max-width: unset;
+        grid-template-columns: unset !important;
+    }
+    .vc-btn { width: 44px; height: 44px; }
+    .local-video {
+        width: 100px !important;
+        height: 75px !important;
+        top: 8px !important;
+        right: 70px !important;
+        bottom: unset !important;
+    }
+    #filter-panel {
+        bottom: auto !important;
+        top: 8px !important;
+        right: 70px !important;
+        left: auto !important;
+        transform: none !important;
+        width: 260px !important;
+    }
+    .vc-info-bar { display: none; }
+}
+
+/* ════════════════════════════════════════════════════════════
+   FIX: input chat en iOS (zoom en focus)
+   ════════════════════════════════════════════════════════════ */
+@media (max-width: 600px) {
+    #message-input,
+    #new-task-input,
+    .simple-input,
+    .modal input[type="text"],
+    .modal input[type="email"],
+    .modal textarea {
+        font-size: 16px !important; /* evita zoom automático en iOS */
     }
 }
