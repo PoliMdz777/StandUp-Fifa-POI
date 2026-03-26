@@ -47,14 +47,21 @@ const sessionData = sessionStorage.getItem('fifa_user');
 let currentUser   = JSON.parse(sessionData);
 window.currentUser = currentUser; // exponer para videocall_enhanced.js
 
-// Migración para usuarios antiguos (sin inventory/equipped)
+// Migración para usuarios antiguos (sin inventory/equipped/friends/groups)
 if (!currentUser.inventory) currentUser.inventory = [];
 if (!currentUser.equipped)  currentUser.equipped  = {};
+if (!currentUser.friends)   currentUser.friends   = ['Asistente IA 🤖'];
+if (!currentUser.groups)    currentUser.groups    = [];
 
 // Asegurar que el usuario tenga el ítem por defecto "Marco Estadio"
 if (!currentUser.inventory.includes('stadium_frame')) {
     currentUser.inventory.push('stadium_frame');
     currentUser.equipped.frame = 'stadium-frame';
+
+// Asegurar que el Asistente IA esté siempre en la lista de amigos
+if (!currentUser.friends.includes('Asistente IA 🤖')) {
+    currentUser.friends.unshift('Asistente IA 🤖');
+}
 }
 
 // Persist user — sessionStorage (pestaña activa) + localStorage (recarga)
@@ -63,6 +70,41 @@ function saveUser() {
     sessionStorage.setItem('fifa_user', json);
     localStorage.setItem('fifa_user_persist', json);
     window.currentUser = currentUser; // mantener sync con videocall_enhanced.js
+}
+
+// ── Sincronizar usuario completo a Firestore (friends, groups, profile, points) ──
+async function _saveUserToFirestore() {
+    if (!currentUser.uid) return;
+    try {
+        const { getFirestore, doc, setDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+        const { getApps, initializeApp }    = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
+        const _cfg = {
+            apiKey: "AIzaSyBQCxLixqM8qDquL3-xkMjkyupBlcgl2ek",
+            authDomain: "standup-fifa-5f423.firebaseapp.com",
+            projectId: "standup-fifa-5f423",
+            storageBucket: "standup-fifa-5f423.appspot.com",
+            messagingSenderId: "823333890415",
+            appId: "1:112092859394:web:acaf19a3ed635667d3ab1b"
+        };
+        const app = getApps().length ? getApps()[0] : initializeApp(_cfg);
+        const db  = getFirestore(app);
+        await setDoc(doc(db, 'users', currentUser.uid), {
+            name:      currentUser.name,
+            email:     currentUser.email,
+            country:   currentUser.country   || '🇲🇽 México',
+            bio:       currentUser.bio        || '',
+            status:    currentUser.status     || 'online',
+            avatar:    currentUser.avatar     || null,
+            points:    currentUser.points     || 0,
+            level:     currentUser.level      || 'Rookie',
+            inventory: currentUser.inventory  || [],
+            equipped:  currentUser.equipped   || {},
+            friends:   currentUser.friends    || ['Asistente IA 🤖'],
+            groups:    currentUser.groups     || []
+        }, { merge: true });
+    } catch(e) {
+        console.warn('⚠️ No se pudo sincronizar usuario a Firestore:', e.message);
+    }
 }
 
 // ─── LOCAL STORAGE HELPERS ───────────────────────────────
@@ -354,35 +396,43 @@ function selectChat(type, id, name, avatarType, liEl) {
         document.getElementById('vc-remote-avatar').src = `https://api.dicebear.com/7.x/adventurer/svg?seed=${id}`;
     }
 
-     // Cargar historial desde Firestore (reemplaza los mensajes locales)
-    if (window.db_loadMessages) {
-        window.db_loadMessages(id).then(firestoreMsgs => {
-            if (firestoreMsgs.length > 0) {
-                const msgs = document.getElementById('chat-messages');
-                msgs.innerHTML = '<div class="day-divider"><span>Hoy</span></div>';
-                firestoreMsgs.forEach(m => appendMessage(
-                    m.message, m.msgType || 'received', m.senderId,
-                    m.time, m.fileUrl, m.fileName, m.type, m.locationUrl
-                ));
-            }
-        });
-    }
-
-    // Load conversation from localStorage
+     // Cargar historial: Firestore tiene prioridad, localStorage como fallback
     const msgs = document.getElementById('chat-messages');
     msgs.innerHTML = '<div class="day-divider"><span>Hoy</span></div>';
-    const saved = loadMessages(id);
-    if (saved.length > 0) {
-        saved.forEach(m => appendMessage(m.message, m.type||'received', m.senderId, m.time, m.fileUrl, m.fileName, m.msgType, m.locationUrl));
+
+    if (window.db_loadMessages && id !== 'asistente_ia') {
+        window.db_loadMessages(id).then(firestoreMsgs => {
+            if (firestoreMsgs.length > 0) {
+                msgs.innerHTML = '<div class="day-divider"><span>Hoy</span></div>';
+                firestoreMsgs.forEach(m => appendMessage(
+                    m.message, m.msgType || m.type || 'received', m.senderId,
+                    m.time, m.fileUrl, m.fileName, m.type, m.locationUrl
+                ));
+            } else {
+                // Sin mensajes en Firestore — mostrar localStorage o demo
+                const saved = loadMessages(id);
+                if (saved.length > 0) {
+                    saved.forEach(m => appendMessage(m.message, m.type||'received', m.senderId, m.time, m.fileUrl, m.fileName, m.msgType, m.locationUrl));
+                } else if (type === 'group' && id === 'grupo_tour') {
+                    appendMessage('¡Hola a todos! ¿A qué hora nos vemos para ir al estadio? 🏟️','received','Turista 23','10:00 AM');
+                    appendMessage('Yo sugiero tomar el metro a las 12:00 PM ⚽','sent',null,'10:05 AM');
+                    appendMessage('Perfecto. Les comparto la ruta 📍','received','Guía Carlos','10:07 AM',null,null,'location','https://maps.google.com?q=25.6866,-100.3161');
+                }
+            }
+        }).catch(() => {
+            // Error en Firestore — usar localStorage
+            const saved = loadMessages(id);
+            if (saved.length > 0) {
+                saved.forEach(m => appendMessage(m.message, m.type||'received', m.senderId, m.time, m.fileUrl, m.fileName, m.msgType, m.locationUrl));
+            }
+        });
     } else {
-        // Demo messages
-        if (type==='group' && id==='grupo_tour') {
-            appendMessage('¡Hola a todos! ¿A qué hora nos vemos para ir al estadio? 🏟️','received','Turista 23','10:00 AM');
-            appendMessage('Yo sugiero tomar el metro a las 12:00 PM ⚽','sent',null,'10:05 AM');
-            appendMessage('Perfecto. Les comparto la ruta 📍','received','Guía Carlos','10:07 AM',null,null,'location','https://maps.google.com?q=25.6866,-100.3161');
-        } else {
-            appendMessage(`¡Hola! Soy ${name}. ¿En qué te puedo ayudar?`,'received',name,'09:30 AM');
-            appendMessage('Hola! ¿Dónde nos encontramos?','sent',null,'09:31 AM');
+        // Asistente IA o sin Firestore — localStorage directo
+        const saved = loadMessages(id);
+        if (saved.length > 0) {
+            saved.forEach(m => appendMessage(m.message, m.type||'received', m.senderId, m.time, m.fileUrl, m.fileName, m.msgType, m.locationUrl));
+        } else if (id === 'asistente_ia') {
+            appendMessage('¡Hola! Soy tu Asistente IA del FIFA 2026 🤖⚽. ¿En qué te puedo ayudar?','received','🤖 Asistente IA',new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}));
         }
     }
     closeSidebar();
@@ -714,6 +764,13 @@ function createGroup() {
         <span class="unread-badge" id="badge-${groupId}" style="display:none">0</span>`;
     document.getElementById('contacts').appendChild(li);
     if (socket?.connected) socket.emit('join_group', groupId);
+
+    // Guardar grupo en el perfil del usuario para persistencia
+    if (!currentUser.groups) currentUser.groups = [];
+    currentUser.groups.push({ id: groupId, name, members: [currentUser.name, ...selected] });
+    saveUser();
+    _saveUserToFirestore();
+
     closeModal('create-group-modal');
     document.getElementById('group-name-input').value = '';
     document.querySelectorAll('.user-check-item input').forEach(cb=>cb.checked=false);
@@ -739,6 +796,8 @@ function changeAvatar(event) {
         document.getElementById('user-avatar').src         = url;
         document.getElementById('card-avatar').src         = url;
         currentUser.avatar = url;
+        saveUser();
+        _saveUserToFirestore();
     };
     reader.readAsDataURL(file);
 }
@@ -752,6 +811,8 @@ function saveProfile() {
     if (!email || !email.includes('@')) { showToast('Correo inválido','error'); return; }
     currentUser = { ...currentUser, name, email, country, bio, status };
     saveUser();
+    // Guardar perfil en Firestore
+    _saveUserToFirestore();
     hydrateUI();
     changeMyStatus(status);
     closeModal('profile-modal');
@@ -904,10 +965,12 @@ function awardPoints(pts, reason) {
     userPoints += pts;
     currentUser.points = userPoints;
     saveUser();
-     // Guardar recompensa en Firestore
-        if (window.db_saveReward) {
-            window.db_saveReward(currentUser.name, reason, pts, userPoints);
-        }
+    // Guardar recompensa en Firestore
+    if (window.db_saveReward) {
+        window.db_saveReward(currentUser.name, reason, pts, userPoints);
+    }
+    // Sincronizar puntos al perfil de Firestore
+    _saveUserToFirestore();
     updatePtsDisplay();
     updateLevelUI(userPoints);
     const notifRewards = document.getElementById('notif-rewards');
@@ -998,6 +1061,7 @@ window.buyItem = function(itemId, cost, type, cssClass) {
         // Poseído pero sin equipar — sólo equipar, sin cobrar
         currentUser.equipped[type] = cssClass;
         saveUser();
+        _saveUserToFirestore();
         updateStoreButtons();
         showToast('✅ ' + (STORE_ITEMS[itemId] ? STORE_ITEMS[itemId].label : itemId) + ' equipado', 'success');
         return;
@@ -1013,6 +1077,7 @@ window.buyItem = function(itemId, cost, type, cssClass) {
     currentUser.inventory.push(itemId);
     currentUser.equipped[type] = cssClass;
     saveUser();
+    _saveUserToFirestore();
     updatePtsDisplay();
     updateStoreButtons();
     showToast('🎉 ¡Comprado! Te costó ' + cost + ' pts', 'success');
@@ -1126,6 +1191,28 @@ document.addEventListener('DOMContentLoaded', () => {
     updateStoreButtons();
     window.currentUser = currentUser; // asegurar que videocall_enhanced.js lo vea
     window.currentChat = currentChat;
+
+    // Restaurar grupos guardados en el perfil del usuario
+    if (currentUser.groups && currentUser.groups.length > 0) {
+        const contactList = document.getElementById('contacts');
+        currentUser.groups.forEach(g => {
+            if (!document.querySelector(`[data-chat-id="${g.id}"]`)) {
+                const li = document.createElement('li');
+                li.className = 'contact-item';
+                li.dataset.chatId = g.id;
+                li.onclick = () => selectChat('group', g.id, g.name, 'group', li);
+                li.innerHTML = `
+                    <div class="contact-avatar group-av"><i class="fas fa-users"></i></div>
+                    <div class="contact-info">
+                        <span class="contact-name">${escHtml(g.name)}</span>
+                        <span class="contact-preview" id="preview-${g.id}">${(g.members || []).length} integrantes</span>
+                    </div>
+                    <span class="unread-badge" id="badge-${g.id}" style="display:none">0</span>`;
+                contactList.appendChild(li);
+                if (socket?.connected) socket.emit('join_group', g.id);
+            }
+        });
+    }
 
      setTimeout(loadRealUsers, 1500); // espera que Firestore cargue
 
@@ -1326,10 +1413,8 @@ window.addFriend = function() {
     if (!currentUser.friends.includes(exactUser.name)) {
         currentUser.friends.push(exactUser.name); // Nombre exacto tal como está en Firestore
         saveUser();
-        // Forzamos la actualización guardando en Firestore si es posible
-        if (window.db_updateUserProfile && window.auth?.currentUser?.uid) {
-            window.db_updateUserProfile(window.auth.currentUser.uid, { friends: currentUser.friends });
-        }
+        // Guardar friends en Firestore para persistencia entre sesiones
+        _saveUserToFirestore();
         showToast(`✅ ${exactUser.name} agregado a tus chats`, 'success');
         
         // Cierra el modal y redibuja la lista sin recargar de Firebase
