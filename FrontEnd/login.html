@@ -399,7 +399,9 @@
                         bio:       snap.data().bio       || '',
                         avatar:    snap.data().avatar    || null,
                         inventory: snap.data().inventory || [],
-                        equipped:  snap.data().equipped  || {}
+                        equipped:  snap.data().equipped  || {},
+                        friends:   snap.data().friends   || ['Asistente IA 🤖'],
+                        groups:    snap.data().groups    || []
                     };
                 } else {
                     userData = {
@@ -408,7 +410,8 @@
                         email:     firebaseUser.email,
                         country:   '🇲🇽 México',
                         points:    0, level: 'Rookie', status: 'online',
-                        bio: '', avatar: null, inventory: [], equipped: {}
+                        bio: '', avatar: null, inventory: [], equipped: {},
+                        friends: ['Asistente IA 🤖'], groups: []
                     };
                 }
                 const json = JSON.stringify(userData);
