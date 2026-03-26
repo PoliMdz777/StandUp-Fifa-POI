@@ -1173,7 +1173,17 @@ window.logoutApp = logoutApp;
 
 //  CARGA DINÁMICA DE USUARIOS REALES DESDE FIREBASE
 
+// 1. Variables globales para mantener los datos en memoria
+let allDBUsers = [];
+let usersSnapshotUnsubscribe = null;
+
 async function loadRealUsers() {
+    // Asegurar que exista el array de amigos en la sesión actual
+    if (!currentUser.friends) {
+        currentUser.friends = ['Asistente IA 🤖']; // Amigo por defecto
+        saveUser();
+    }
+    
     try {
         // Esperar a que firestore_integration.js cargue
         let intentos = 0;
@@ -1182,8 +1192,8 @@ async function loadRealUsers() {
             intentos++;
         }
 
-        // Leer usuarios directo de Firestore (sin necesitar serviceAccountKey)
-        const { getFirestore, collection, getDocs } = await import(
+        // Leer usuarios directo de Firestore — onSnapshot importado para tiempo real
+        const { getFirestore, collection, getDocs, onSnapshot } = await import(
             'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
         );
         const { initializeApp, getApps } = await import(
@@ -1201,58 +1211,132 @@ async function loadRealUsers() {
 
         const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
         const db  = getFirestore(app);
+
+        // Carga inicial: llenar allDBUsers de inmediato para que addFriend funcione sin esperar
         const snap = await getDocs(collection(db, 'users'));
-        const users = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        allDBUsers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        renderFriendsList();
 
-        const list = document.getElementById('contacts');
-        const selector = document.querySelector('.user-selector');
-        if (selector) selector.innerHTML = '';
+        // Si ya hay un listener activo, lo cancelamos para no duplicar
+        if (usersSnapshotUnsubscribe) usersSnapshotUnsubscribe();
 
-        users.forEach(u => {
-            if (u.name === currentUser.name) return;
-
-            // ── Agregar a lista de contactos ──────────────
-            if (!document.querySelector(`[data-chat-id="${u.name}"]`)) {
-                const li = document.createElement('li');
-                li.className = 'contact-item';
-                li.dataset.chatId = u.name;
-                li.onclick = () => selectChat('private', u.name, u.name, 'user', li);
-                li.innerHTML = `
-                    <div class="contact-avatar">
-                        <img src="${u.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${u.name}`}" alt="">
-                        <span class="status-indicator ${u.status || 'offline'}" id="status-${u.name}"></span>
-                    </div>
-                    <div class="contact-info">
-                        <span class="contact-name">${escHtml(u.name)}</span>
-                        <span class="contact-preview" id="preview-${u.name}">${escHtml(u.country || '')}</span>
-                    </div>
-                    <span class="unread-badge" id="badge-${u.name}" style="display:none">0</span>`;
-                list.appendChild(li);
-            }
-
-            // ── Agregar al modal "Crear Grupo" ────────────
-            if (selector) {
-                const item = document.createElement('div');
-                item.className = 'user-check-item';
-                item.innerHTML = `
-                    <img src="${u.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${u.name}`}" alt="">
-                    <div>
-                        <strong>${escHtml(u.name)}</strong>
-                        <span class="${u.status === 'online' ? 'online-tag' : 'offline-tag'}">
-                            ${u.status === 'online' ? '🟢 En línea' : '🔴 Desconectado'}
-                        </span>
-                    </div>
-                    <input type="checkbox" value="${escHtml(u.name)}">`;
-                selector.appendChild(item);
-            }
+        // Listener en tiempo real: mantiene allDBUsers fresco y redibuja la UI
+        usersSnapshotUnsubscribe = onSnapshot(collection(db, 'users'), (snap) => {
+            allDBUsers = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            renderFriendsList();
         });
 
-        if (selector && selector.children.length === 0) {
-            selector.innerHTML = '<p style="color:var(--muted);font-size:.82rem;padding:10px">No hay otros usuarios registrados aún.</p>';
-        }
 
     } catch(e) {
         console.warn('No se pudieron cargar usuarios desde Firestore:', e);
     }
 }
 window.loadRealUsers = loadRealUsers;
+
+// 3. FUNCIÓN QUE DIBUJA LA LISTA EN PANTALLA
+function renderFriendsList() {
+    const list = document.getElementById('contacts');
+    const selector = document.querySelector('.user-selector');
+    
+    if (list) list.innerHTML = ''; // Limpiamos la lista
+    if (selector) selector.innerHTML = '';
+
+    // A) Renderizar al Asistente IA SIEMPRE (Porque no vive en Firebase)
+    if (list && currentUser.friends.includes('Asistente IA 🤖')) {
+        const aiLi = document.createElement('li');
+        aiLi.className = 'contact-item';
+        if (currentChat.id === 'asistente_ia') aiLi.classList.add('active-chat');
+        aiLi.onclick = () => selectChat('private', 'asistente_ia', 'Asistente IA 🤖', 'user', aiLi);
+        aiLi.innerHTML = `
+            <div class="contact-avatar">
+                <div style="background:var(--teal); width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:1.2rem;">🤖</div>
+                <span class="status-indicator online"></span>
+            </div>
+            <div class="contact-info">
+                <span class="contact-name">Asistente IA 🤖</span>
+                <span class="contact-preview">Siempre disponible</span>
+            </div>`;
+        list.appendChild(aiLi);
+    }
+
+    // B) Recorrer todos los usuarios de la base de datos
+    allDBUsers.forEach(u => {
+        if (u.name === currentUser.name) return; // No mostrarse a uno mismo
+
+        // Llenar el modal de "Crear Grupo"
+        if (selector) {
+            const item = document.createElement('div');
+            item.className = 'user-check-item';
+            item.innerHTML = `
+                <img src="${u.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${u.name}`}" alt="">
+                <div>
+                    <strong>${escHtml(u.name)}</strong>
+                    <span class="${u.status === 'online' ? 'online-tag' : 'offline-tag'}">
+                        ${u.status === 'online' ? '🟢 En línea' : (u.status === 'busy' ? '🔴 Ocupado' : '⚫ Desconectado')}
+                    </span>
+                </div>
+                <input type="checkbox" value="${escHtml(u.name)}">`;
+            selector.appendChild(item);
+        }
+
+        // C) Llenar la barra lateral SOLO si es amigo
+        if (currentUser.friends && currentUser.friends.includes(u.name) && list) {
+            const li = document.createElement('li');
+            li.className = 'contact-item';
+            if (currentChat.id === u.name) li.classList.add('active-chat');
+            li.dataset.chatId = u.name;
+            li.onclick = () => selectChat('private', u.name, u.name, 'user', li);
+            
+            li.innerHTML = `
+                <div class="contact-avatar">
+                    <img src="${u.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${u.name}`}" alt="">
+                    <span class="status-indicator ${u.status || 'offline'}"></span>
+                </div>
+                <div class="contact-info">
+                    <span class="contact-name">${escHtml(u.name)}</span>
+                    <span class="contact-preview">${u.status === 'online' ? 'Disponible' : 'Desconectado'}</span>
+                </div>
+                <span class="unread-badge" id="badge-${u.name}" style="display:none">0</span>`;
+            list.appendChild(li);
+        }
+    });
+}
+
+// ─── Función para agregar un amigo nuevo ───
+window.addFriend = function() {
+    const friendName = document.getElementById('friend-search-input').value.trim();
+    if (!friendName) {
+        showToast('Escribe un nombre de usuario', 'error');
+        return;
+    }
+    
+    if (friendName === currentUser.name) {
+        showToast('No puedes agregarte a ti mismo', 'info');
+        return;
+    }
+
+    // VALIDACIÓN CLAVE: Buscamos si el usuario existe ignorando mayúsculas/minúsculas
+    const exactUser = allDBUsers.find(u => u.name.toLowerCase() === friendName.toLowerCase());
+
+    if (!exactUser) {
+        showToast(`El usuario "${friendName}" no existe en la app`, 'error');
+        return;
+    }
+    
+    if (!currentUser.friends.includes(exactUser.name)) {
+        currentUser.friends.push(exactUser.name); // Nombre exacto tal como está en Firestore
+        saveUser();
+        // Forzamos la actualización guardando en Firestore si es posible
+        if (window.db_updateUserProfile && window.auth?.currentUser?.uid) {
+            window.db_updateUserProfile(window.auth.currentUser.uid, { friends: currentUser.friends });
+        }
+        showToast(`✅ ${exactUser.name} agregado a tus chats`, 'success');
+        
+        // Cierra el modal y redibuja la lista sin recargar de Firebase
+        closeModal('add-friend-modal');
+        document.getElementById('friend-search-input').value = '';
+        renderFriendsList(); 
+    } else {
+        showToast('Este usuario ya está en tus chats', 'info');
+    }
+}
