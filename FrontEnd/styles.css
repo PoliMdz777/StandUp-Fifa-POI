@@ -1448,3 +1448,60 @@ textarea::placeholder { color: var(--muted); }
 .bg-gold-bubble   { background: linear-gradient(135deg,#F0C040,#E8A020) !important; color: #0A0E1A !important; }
 .bg-sunset-bubble { background: linear-gradient(135deg,#6B1B8A,#FF6B35) !important; }
 
+
+/* ═══════════════════════════════════════════════════
+   VIDEOLLAMADA — PANEL DE FILTROS (tema oscuro)
+   ═══════════════════════════════════════════════════ */
+.filter-btn {
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.12);
+    color: #E8EDF5;
+    border-radius: 10px;
+    padding: 7px 13px;
+    cursor: pointer;
+    font-size: 0.78rem;
+    font-family: 'Outfit', sans-serif;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
+    white-space: nowrap;
+}
+.filter-btn:hover {
+    background: rgba(255,255,255,0.13);
+    border-color: rgba(255,255,255,0.22);
+}
+.filter-btn.active {
+    background: rgba(0,201,167,0.18) !important;
+    border-color: rgba(0,201,167,0.5) !important;
+    color: #00C9A7 !important;
+    box-shadow: 0 0 10px rgba(0,201,167,0.2);
+}
+
+/* ═══════════════════════════════════════════════════
+   MENSAJES — separador de fecha y metadatos
+   ═══════════════════════════════════════════════════ */
+.msg-date-group {
+    text-align: center;
+    margin: 12px 0 4px;
+    font-size: 0.68rem;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+}
+.msg-meta-row {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.67rem;
+    color: var(--muted);
+    margin-top: 2px;
+}
+.message.sent  .msg-meta-row { justify-content: flex-end; }
+.message.received .msg-meta-row { justify-content: flex-start; }
+.msg-sender-inline {
+    font-weight: 600;
+    font-size: 0.72rem;
+    color: var(--teal);
+    margin-bottom: 2px;
+}
