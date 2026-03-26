@@ -98,6 +98,17 @@ window.openVideoCall = async function() {
         window.showToast?.('Las videollamadas son solo en chats privados', 'info');
         return;
     }
+
+    // ── Verificar si el usuario destino está en línea ────────────
+    const targetStatusEl = document.getElementById(`status-${chat.id}`);
+    const isOnline = targetStatusEl?.classList.contains('online');
+
+    if (!isOnline && window.socket?.connected) {
+        // El socket está activo pero el usuario no aparece online — no llamar
+        window.showToast?.(`📵 ${chat.name} no está en línea en este momento`, 'error');
+        return;
+    }
+
     window.openModal?.('videocall-modal');
     document.getElementById('vc-connecting').style.display = 'block';
     document.getElementById('vc-timer').textContent = '00:00';
@@ -112,7 +123,16 @@ window.openVideoCall = async function() {
                 receiverId: chat.id, peerId: _myPeer?.id || ''
             });
             window.showToast?.(`📞 Llamando a ${chat.name}...`, 'info');
+
+            // Si no responde en 30 segundos, cancelar automáticamente
+            window._callTimeout = setTimeout(() => {
+                if (document.getElementById('videocall-modal')?.classList.contains('open')) {
+                    window.endCall?.();
+                    window.showToast?.(`📵 ${chat.name} no respondió la llamada`, 'info');
+                }
+            }, 30000);
         } else {
+            // Sin socket — modo demo
             setTimeout(() => {
                 document.getElementById('vc-connecting').style.display = 'none';
                 _startTimer();
@@ -468,6 +488,7 @@ window.toggleCam = function(btn) {
 // ════════════════════════════════════════════════════════════
 window.endCall = function() {
     clearInterval(_vcTimer);
+    clearTimeout(window._callTimeout); // limpiar timeout de "no respondió"
     if (_frameId) { cancelAnimationFrame(_frameId); _frameId = null; }
 
     _localStream?.getTracks().forEach(t => t.stop());
@@ -504,6 +525,7 @@ window.endCall = function() {
 
 // ── Mostrar stream remoto ─────────────────────────────────────────
 function _showRemoteStream(rs) {
+    clearTimeout(window._callTimeout); // respondió — cancelar el timeout
     const rv=document.getElementById('remote-stream'), ph=document.getElementById('vc-placeholder');
     if (rv) { rv.srcObject=rs; rv.style.display='block'; }
     if (ph) ph.style.display='none';
