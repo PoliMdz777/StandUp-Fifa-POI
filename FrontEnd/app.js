@@ -47,21 +47,14 @@ const sessionData = sessionStorage.getItem('fifa_user');
 let currentUser   = JSON.parse(sessionData);
 window.currentUser = currentUser; // exponer para videocall_enhanced.js
 
-// Migración para usuarios antiguos (sin inventory/equipped/friends/groups)
+// Migración para usuarios antiguos (sin inventory/equipped)
 if (!currentUser.inventory) currentUser.inventory = [];
 if (!currentUser.equipped)  currentUser.equipped  = {};
-if (!currentUser.friends)   currentUser.friends   = ['Asistente IA 🤖'];
-if (!currentUser.groups)    currentUser.groups    = [];
 
 // Asegurar que el usuario tenga el ítem por defecto "Marco Estadio"
 if (!currentUser.inventory.includes('stadium_frame')) {
     currentUser.inventory.push('stadium_frame');
     currentUser.equipped.frame = 'stadium-frame';
-
-// Asegurar que el Asistente IA esté siempre en la lista de amigos
-if (!currentUser.friends.includes('Asistente IA 🤖')) {
-    currentUser.friends.unshift('Asistente IA 🤖');
-}
 }
 
 // Persist user — sessionStorage (pestaña activa) + localStorage (recarga)
@@ -70,41 +63,6 @@ function saveUser() {
     sessionStorage.setItem('fifa_user', json);
     localStorage.setItem('fifa_user_persist', json);
     window.currentUser = currentUser; // mantener sync con videocall_enhanced.js
-}
-
-// ── Sincronizar usuario completo a Firestore (friends, groups, profile, points) ──
-async function _saveUserToFirestore() {
-    if (!currentUser.uid) return;
-    try {
-        const { getFirestore, doc, setDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-        const { getApps, initializeApp }    = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
-        const _cfg = {
-            apiKey: "AIzaSyBQCxLixqM8qDquL3-xkMjkyupBlcgl2ek",
-            authDomain: "standup-fifa-5f423.firebaseapp.com",
-            projectId: "standup-fifa-5f423",
-            storageBucket: "standup-fifa-5f423.appspot.com",
-            messagingSenderId: "823333890415",
-            appId: "1:112092859394:web:acaf19a3ed635667d3ab1b"
-        };
-        const app = getApps().length ? getApps()[0] : initializeApp(_cfg);
-        const db  = getFirestore(app);
-        await setDoc(doc(db, 'users', currentUser.uid), {
-            name:      currentUser.name,
-            email:     currentUser.email,
-            country:   currentUser.country   || '🇲🇽 México',
-            bio:       currentUser.bio        || '',
-            status:    currentUser.status     || 'online',
-            avatar:    currentUser.avatar     || null,
-            points:    currentUser.points     || 0,
-            level:     currentUser.level      || 'Rookie',
-            inventory: currentUser.inventory  || [],
-            equipped:  currentUser.equipped   || {},
-            friends:   currentUser.friends    || ['Asistente IA 🤖'],
-            groups:    currentUser.groups     || []
-        }, { merge: true });
-    } catch(e) {
-        console.warn('⚠️ No se pudo sincronizar usuario a Firestore:', e.message);
-    }
 }
 
 // ─── LOCAL STORAGE HELPERS ───────────────────────────────
@@ -396,43 +354,42 @@ function selectChat(type, id, name, avatarType, liEl) {
         document.getElementById('vc-remote-avatar').src = `https://api.dicebear.com/7.x/adventurer/svg?seed=${id}`;
     }
 
-     // Cargar historial: Firestore tiene prioridad, localStorage como fallback
-    const msgs = document.getElementById('chat-messages');
-    msgs.innerHTML = '<div class="day-divider"><span>Hoy</span></div>';
-
+     // Cargar historial — Firestore tiene prioridad, localStorage como fallback
     if (window.db_loadMessages && id !== 'asistente_ia') {
+        // Mostrar localStorage inmediatamente mientras carga Firestore
+        const savedLocal = loadMessages(id);
+        if (savedLocal.length > 0) {
+            savedLocal.forEach(m => {
+                const msgType = m.senderId === currentUser.name ? 'sent' : (m.type || 'received');
+                appendMessage(m.message, msgType, m.senderId, m.time, m.fileUrl, m.fileName, m.msgType, m.locationUrl);
+            });
+        }
+        // Luego cargar Firestore y reemplazar si hay más mensajes
         window.db_loadMessages(id).then(firestoreMsgs => {
             if (firestoreMsgs.length > 0) {
+                const msgs = document.getElementById('chat-messages');
                 msgs.innerHTML = '<div class="day-divider"><span>Hoy</span></div>';
-                firestoreMsgs.forEach(m => appendMessage(
-                    m.message, m.msgType || m.type || 'received', m.senderId,
-                    m.time, m.fileUrl, m.fileName, m.type, m.locationUrl
-                ));
-            } else {
-                // Sin mensajes en Firestore — mostrar localStorage o demo
-                const saved = loadMessages(id);
-                if (saved.length > 0) {
-                    saved.forEach(m => appendMessage(m.message, m.type||'received', m.senderId, m.time, m.fileUrl, m.fileName, m.msgType, m.locationUrl));
-                } else if (type === 'group' && id === 'grupo_tour') {
-                    appendMessage('¡Hola a todos! ¿A qué hora nos vemos para ir al estadio? 🏟️','received','Turista 23','10:00 AM');
-                    appendMessage('Yo sugiero tomar el metro a las 12:00 PM ⚽','sent',null,'10:05 AM');
-                    appendMessage('Perfecto. Les comparto la ruta 📍','received','Guía Carlos','10:07 AM',null,null,'location','https://maps.google.com?q=25.6866,-100.3161');
-                }
+                firestoreMsgs.forEach(m => {
+                    // Determinar sent/received basado en quién envió, no en el campo guardado
+                    const msgType = m.senderId === currentUser.name ? 'sent' : 'received';
+                    appendMessage(
+                        m.message, msgType, m.senderId,
+                        m.time, m.fileUrl, m.fileName, m.type, m.locationUrl
+                    );
+                });
             }
-        }).catch(() => {
-            // Error en Firestore — usar localStorage
-            const saved = loadMessages(id);
-            if (saved.length > 0) {
-                saved.forEach(m => appendMessage(m.message, m.type||'received', m.senderId, m.time, m.fileUrl, m.fileName, m.msgType, m.locationUrl));
-            }
-        });
+        }).catch(() => {}); // ya está mostrando localStorage, no hacer nada en error
     } else {
-        // Asistente IA o sin Firestore — localStorage directo
+        // Asistente IA — solo localStorage
         const saved = loadMessages(id);
         if (saved.length > 0) {
             saved.forEach(m => appendMessage(m.message, m.type||'received', m.senderId, m.time, m.fileUrl, m.fileName, m.msgType, m.locationUrl));
         } else if (id === 'asistente_ia') {
-            appendMessage('¡Hola! Soy tu Asistente IA del FIFA 2026 🤖⚽. ¿En qué te puedo ayudar?','received','🤖 Asistente IA',new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}));
+            appendMessage('¡Hola! Soy tu Asistente IA del FIFA 2026 🤖⚽. ¿En qué te puedo ayudar?','received','🤖 Asistente IA', new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}));
+        } else if (type==='group' && id==='grupo_tour') {
+            appendMessage('¡Hola a todos! ¿A qué hora nos vemos para ir al estadio? 🏟️','received','Turista 23','10:00 AM');
+            appendMessage('Yo sugiero tomar el metro a las 12:00 PM ⚽','sent',null,'10:05 AM');
+            appendMessage('Perfecto. Les comparto la ruta 📍','received','Guía Carlos','10:07 AM',null,null,'location','https://maps.google.com?q=25.6866,-100.3161');
         }
     }
     closeSidebar();
@@ -557,33 +514,107 @@ function sendMessage() {
 
 function appendMessage(text, type, sender, time, fileUrl, fileName, msgType, locationUrl) {
     const msgs = document.getElementById('chat-messages');
-    const div  = document.createElement('div');
+
+    // ── Separador de fecha ──────────────────────────────────────
+    const todayStr = new Date().toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'});
+    const lastDiv  = msgs.lastElementChild;
+    const lastDate = lastDiv?.dataset?.date;
+    if (lastDate !== todayStr) {
+        const sep = document.createElement('div');
+        sep.className   = 'day-divider';
+        sep.dataset.date = todayStr;
+        sep.innerHTML   = `<span>${todayStr}</span>`;
+        // solo agregar si no hay ya uno con la misma fecha
+        if (!msgs.querySelector(`.day-divider[data-date="${todayStr}"]`)) {
+            msgs.appendChild(sep);
+        }
+    }
+
+    const div = document.createElement('div');
     div.classList.add('message', type);
 
-    // Aplicar fondo de mensaje si es enviado y hay fondo equipado
-     if (type === 'sent' && currentUser.equipped && currentUser.equipped['msg-bg']) {
+    if (type === 'sent' && currentUser.equipped && currentUser.equipped['msg-bg']) {
         div.classList.add(currentUser.equipped['msg-bg']);
     }
 
     let inner = '';
-    if (type==='received' && sender) inner += `<div class="msg-sender">${escHtml(sender)}</div>`;
+
+    // Nombre del remitente (para mensajes recibidos y grupos)
+    if (type === 'received' && sender) {
+        inner += `<div class="msg-sender">${escHtml(sender)}</div>`;
+    }
+
+    // Texto del mensaje
     if (text) inner += `<p>${escHtml(text)}</p>`;
-    if (msgType==='location' || locationUrl) {
-        inner += `<div class="location-msg" onclick="openModal('view-loc-modal')">
-            <i class="fas fa-map-marker-alt"></i><span>Ver ubicación en Google Maps</span><i class="fas fa-external-link-alt"></i>
+
+    // Ubicación
+    if (msgType === 'location' || locationUrl) {
+        const url = locationUrl || '#';
+        inner += `<div class="location-msg">
+            <i class="fas fa-map-marker-alt"></i>
+            <span>Ubicación</span>
+            <a href="${escHtml(url)}" target="_blank" rel="noopener" style="color:var(--teal);font-size:0.8rem;display:flex;align-items:center;gap:4px;margin-top:4px;">
+                <i class="fas fa-external-link-alt"></i> Ver ubicación en Google Maps
+            </a>
         </div>`;
     }
-    if ((msgType==='file'||fileName) && fileName) {
-        const isImage = /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(fileName);
-        if (isImage && fileUrl) {
-            inner += `<div class="msg-file"><img src="${fileUrl}" alt="${escHtml(fileName)}"></div>`;
+
+    // Archivo adjunto — soporte para imagen, PDF, video, audio, otros
+    if ((msgType === 'file' || fileName) && fileName) {
+        const ext  = fileName.split('.').pop().toLowerCase();
+        const isImg   = /^(jpg|jpeg|png|gif|webp|svg|bmp)$/.test(ext);
+        const isPdf   = ext === 'pdf';
+        const isVideo = /^(mp4|webm|mov|avi)$/.test(ext);
+        const isAudio = /^(mp3|ogg|wav|m4a)$/.test(ext);
+
+        if (isImg && fileUrl) {
+            inner += `<div class="msg-file">
+                <img src="${escHtml(fileUrl)}" alt="${escHtml(fileName)}"
+                     style="max-width:220px;max-height:200px;border-radius:8px;cursor:pointer;object-fit:cover;"
+                     onclick="window.open('${escHtml(fileUrl)}','_blank')">
+                <div style="font-size:0.72rem;color:var(--muted);margin-top:4px;">${escHtml(fileName)}</div>
+            </div>`;
+        } else if (isVideo && fileUrl) {
+            inner += `<div class="msg-file">
+                <video src="${escHtml(fileUrl)}" controls style="max-width:220px;border-radius:8px;"></video>
+                <div style="font-size:0.72rem;color:var(--muted);margin-top:4px;">${escHtml(fileName)}</div>
+            </div>`;
+        } else if (isAudio && fileUrl) {
+            inner += `<div class="msg-file">
+                <audio src="${escHtml(fileUrl)}" controls style="width:200px;"></audio>
+                <div style="font-size:0.72rem;color:var(--muted);margin-top:4px;">${escHtml(fileName)}</div>
+            </div>`;
+        } else if (isPdf && fileUrl) {
+            inner += `<div class="msg-file" style="display:flex;align-items:center;gap:10px;">
+                <i class="fas fa-file-pdf" style="font-size:1.8rem;color:#e74c3c;flex-shrink:0;"></i>
+                <div>
+                    <strong style="font-size:0.85rem;">${escHtml(fileName)}</strong><br>
+                    <a href="${escHtml(fileUrl)}" target="_blank" rel="noopener"
+                       style="font-size:0.75rem;color:var(--teal);">Abrir PDF <i class="fas fa-external-link-alt"></i></a>
+                </div>
+            </div>`;
         } else {
-            inner += `<div class="msg-file"><i class="fas fa-file-alt" style="font-size:1.4rem;color:var(--gold)"></i>
-                <div><strong>${escHtml(fileName)}</strong><br><small>Archivo adjunto</small></div></div>`;
+            const icons = { zip:'fa-file-zipper', doc:'fa-file-word', docx:'fa-file-word',
+                            xls:'fa-file-excel', xlsx:'fa-file-excel', ppt:'fa-file-powerpoint',
+                            pptx:'fa-file-powerpoint', txt:'fa-file-lines' };
+            const icon = icons[ext] || 'fa-file';
+            inner += `<div class="msg-file" style="display:flex;align-items:center;gap:10px;">
+                <i class="fas ${icon}" style="font-size:1.8rem;color:var(--gold);flex-shrink:0;"></i>
+                <div>
+                    <strong style="font-size:0.85rem;">${escHtml(fileName)}</strong><br>
+                    ${fileUrl ? `<a href="${escHtml(fileUrl)}" target="_blank" rel="noopener"
+                       style="font-size:0.75rem;color:var(--teal);">Descargar <i class="fas fa-download"></i></a>` : '<small style="color:var(--muted)">Archivo adjunto</small>'}
+                </div>
+            </div>`;
         }
     }
-    inner += `<span class="time">${time||''}</span>`;
-    if (type==='sent') inner += `<span class="msg-status"><i class="fas fa-check-double"></i></span>`;
+
+    // Hora + checkmarks
+    inner += `<div class="msg-meta-row">
+        <span class="time" style="font-size:0.67rem;color:var(--muted);">${escHtml(time||'')}</span>
+        ${type==='sent' ? '<i class="fas fa-check-double" style="font-size:0.6rem;color:var(--teal);"></i>' : ''}
+    </div>`;
+
     div.innerHTML = inner;
     msgs.appendChild(div);
     msgs.scrollTop = msgs.scrollHeight;
@@ -632,23 +663,55 @@ async function sendFile() {
     sendBtn.disabled  = true;
     sendBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Subiendo...';
     const time = new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+
+    // Timeout de 30 segundos para no dejar congelado el botón
+    const uploadTimeout = setTimeout(() => {
+        sendBtn.disabled  = false;
+        sendBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Enviar';
+        showToast('⏱️ La subida tardó demasiado. Revisa tu conexión.', 'error');
+    }, 30000);
+
     try {
         let fileUrl = null;
+        let uploadedName = pendingFile.name;
+
         if (window.db_uploadFile) {
-            // ✅ Firebase Storage — URL permanente visible en cualquier dispositivo
-            const result = await window.db_uploadFile(pendingFile, 'chat-files');
-            fileUrl = result.url;
-            showToast('✅ Archivo subido a la nube', 'success');
+            try {
+                const result = await window.db_uploadFile(pendingFile, 'chat-files');
+                fileUrl = result.url;
+                showToast('✅ Archivo subido a la nube', 'success');
+            } catch(storageErr) {
+                console.warn('⚠️ Firebase Storage falló, usando URL local como fallback:', storageErr.message);
+                // Fallback: base64 para imágenes pequeñas, URL object para el resto
+                if (pendingFile.type.startsWith('image/') && pendingFile.size < 500*1024) {
+                    fileUrl = await new Promise(resolve => {
+                        const r = new FileReader();
+                        r.onload = e => resolve(e.target.result);
+                        r.readAsDataURL(pendingFile);
+                    });
+                    showToast('⚠️ Sin Storage: imagen guardada localmente', 'info');
+                } else {
+                    fileUrl = URL.createObjectURL(pendingFile);
+                    showToast('⚠️ Sin Storage: archivo solo visible en este dispositivo', 'info');
+                }
+            }
         } else {
-            // ⚠️ Fallback local (solo visible en este dispositivo)
             fileUrl = URL.createObjectURL(pendingFile);
-            showToast('⚠️ Sin Storage: archivo solo visible localmente', 'info');
+            showToast('⚠️ Sin Storage configurado', 'info');
         }
-        appendMessage('', 'sent', null, time, fileUrl, pendingFile.name, 'file');
-        const msgData = { senderId:currentUser.name, type:'sent', msgType:'file', fileName:pendingFile.name, fileUrl, time };
+
+        clearTimeout(uploadTimeout);
+
+        appendMessage('', 'sent', null, time, fileUrl, uploadedName, 'file');
+        const msgData = { senderId:currentUser.name, type:'sent', msgType:'file', fileName:uploadedName, fileUrl, time };
         saveMessage(currentChat.id, msgData);
+
         if (socket?.connected) {
-            const payload = { groupId:currentChat.id, receiverId:currentChat.id, senderId:currentUser.name, message:'', type:'file', fileName:pendingFile.name, fileUrl, time };
+            const payload = {
+                groupId:currentChat.id, receiverId:currentChat.id,
+                senderId:currentUser.name, message:'', type:'file',
+                fileName:uploadedName, fileUrl, time
+            };
             if (currentChat.type === 'group') {
                 socket.emit('send_group_message', payload);
             } else {
@@ -659,8 +722,9 @@ async function sendFile() {
         resetFileModal();
         awardPoints(50, 'Enviaste un archivo');
     } catch(err) {
+        clearTimeout(uploadTimeout);
         console.error('❌ Error al subir archivo:', err);
-        showToast('Error al subir el archivo: ' + err.message, 'error');
+        showToast('Error: ' + (err.message || 'No se pudo subir el archivo'), 'error');
         sendBtn.disabled  = false;
         sendBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Enviar';
     }
@@ -764,13 +828,6 @@ function createGroup() {
         <span class="unread-badge" id="badge-${groupId}" style="display:none">0</span>`;
     document.getElementById('contacts').appendChild(li);
     if (socket?.connected) socket.emit('join_group', groupId);
-
-    // Guardar grupo en el perfil del usuario para persistencia
-    if (!currentUser.groups) currentUser.groups = [];
-    currentUser.groups.push({ id: groupId, name, members: [currentUser.name, ...selected] });
-    saveUser();
-    _saveUserToFirestore();
-
     closeModal('create-group-modal');
     document.getElementById('group-name-input').value = '';
     document.querySelectorAll('.user-check-item input').forEach(cb=>cb.checked=false);
@@ -796,8 +853,6 @@ function changeAvatar(event) {
         document.getElementById('user-avatar').src         = url;
         document.getElementById('card-avatar').src         = url;
         currentUser.avatar = url;
-        saveUser();
-        _saveUserToFirestore();
     };
     reader.readAsDataURL(file);
 }
@@ -811,8 +866,6 @@ function saveProfile() {
     if (!email || !email.includes('@')) { showToast('Correo inválido','error'); return; }
     currentUser = { ...currentUser, name, email, country, bio, status };
     saveUser();
-    // Guardar perfil en Firestore
-    _saveUserToFirestore();
     hydrateUI();
     changeMyStatus(status);
     closeModal('profile-modal');
@@ -965,12 +1018,10 @@ function awardPoints(pts, reason) {
     userPoints += pts;
     currentUser.points = userPoints;
     saveUser();
-    // Guardar recompensa en Firestore
-    if (window.db_saveReward) {
-        window.db_saveReward(currentUser.name, reason, pts, userPoints);
-    }
-    // Sincronizar puntos al perfil de Firestore
-    _saveUserToFirestore();
+     // Guardar recompensa en Firestore
+        if (window.db_saveReward) {
+            window.db_saveReward(currentUser.name, reason, pts, userPoints);
+        }
     updatePtsDisplay();
     updateLevelUI(userPoints);
     const notifRewards = document.getElementById('notif-rewards');
@@ -1061,7 +1112,6 @@ window.buyItem = function(itemId, cost, type, cssClass) {
         // Poseído pero sin equipar — sólo equipar, sin cobrar
         currentUser.equipped[type] = cssClass;
         saveUser();
-        _saveUserToFirestore();
         updateStoreButtons();
         showToast('✅ ' + (STORE_ITEMS[itemId] ? STORE_ITEMS[itemId].label : itemId) + ' equipado', 'success');
         return;
@@ -1077,7 +1127,6 @@ window.buyItem = function(itemId, cost, type, cssClass) {
     currentUser.inventory.push(itemId);
     currentUser.equipped[type] = cssClass;
     saveUser();
-    _saveUserToFirestore();
     updatePtsDisplay();
     updateStoreButtons();
     showToast('🎉 ¡Comprado! Te costó ' + cost + ' pts', 'success');
@@ -1191,28 +1240,6 @@ document.addEventListener('DOMContentLoaded', () => {
     updateStoreButtons();
     window.currentUser = currentUser; // asegurar que videocall_enhanced.js lo vea
     window.currentChat = currentChat;
-
-    // Restaurar grupos guardados en el perfil del usuario
-    if (currentUser.groups && currentUser.groups.length > 0) {
-        const contactList = document.getElementById('contacts');
-        currentUser.groups.forEach(g => {
-            if (!document.querySelector(`[data-chat-id="${g.id}"]`)) {
-                const li = document.createElement('li');
-                li.className = 'contact-item';
-                li.dataset.chatId = g.id;
-                li.onclick = () => selectChat('group', g.id, g.name, 'group', li);
-                li.innerHTML = `
-                    <div class="contact-avatar group-av"><i class="fas fa-users"></i></div>
-                    <div class="contact-info">
-                        <span class="contact-name">${escHtml(g.name)}</span>
-                        <span class="contact-preview" id="preview-${g.id}">${(g.members || []).length} integrantes</span>
-                    </div>
-                    <span class="unread-badge" id="badge-${g.id}" style="display:none">0</span>`;
-                contactList.appendChild(li);
-                if (socket?.connected) socket.emit('join_group', g.id);
-            }
-        });
-    }
 
      setTimeout(loadRealUsers, 1500); // espera que Firestore cargue
 
@@ -1413,8 +1440,10 @@ window.addFriend = function() {
     if (!currentUser.friends.includes(exactUser.name)) {
         currentUser.friends.push(exactUser.name); // Nombre exacto tal como está en Firestore
         saveUser();
-        // Guardar friends en Firestore para persistencia entre sesiones
-        _saveUserToFirestore();
+        // Forzamos la actualización guardando en Firestore si es posible
+        if (window.db_updateUserProfile && window.auth?.currentUser?.uid) {
+            window.db_updateUserProfile(window.auth.currentUser.uid, { friends: currentUser.friends });
+        }
         showToast(`✅ ${exactUser.name} agregado a tus chats`, 'success');
         
         // Cierra el modal y redibuja la lista sin recargar de Firebase
