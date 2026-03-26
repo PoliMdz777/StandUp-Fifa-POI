@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>FIFA 2026 - Tourist Hub</title>
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -64,13 +64,21 @@
         </nav>
 
         <div class="contact-list">
-            <div class="contact-header">
+            <!-- <div class="contact-header">
                 <h4>Chats</h4>
                 <div style="display:flex;gap:6px">
                     <button class="new-chat-btn" onclick="openModal('email-modal')" title="Enviar correo"><i class="fas fa-envelope"></i></button>
                     <button class="new-chat-btn" onclick="openModal('create-group-modal')" title="Nuevo grupo"><i class="fas fa-plus"></i></button>
                 </div>
+            </div> -->
+            <div class="contact-header">
+                <h4>Chats Privados</h4>
+                <div style="display:flex;gap:6px">
+                     <button class="new-chat-btn" onclick="openModal('add-friend-modal')" title="Añadir amigo"><i class="fas fa-user-plus"></i></button>
+                     <button class="new-chat-btn" onclick="openModal('create-group-modal')" title="Nuevo grupo"><i class="fas fa-users"></i></button>
+                </div>
             </div>
+            
             <ul id="contacts">
                 <li class="contact-item active-chat" data-chat-id="grupo_tour" onclick="selectChat('group','grupo_tour','Grupo Tour Estadio','group',this)">
                     <div class="contact-avatar group-av"><i class="fas fa-users"></i></div>
@@ -907,6 +915,30 @@
 <div class="app-ball-decor app-ball-2"></div>
 <div class="app-ball-decor app-ball-3"></div>
 <div class="app-ball-decor app-ball-4"></div>
+
+<div class="modal-overlay" id="add-friend-modal" onclick="closeModalOutside(event,'add-friend-modal')">
+    <div class="modal">
+        <div class="modal-header">
+            <h3><i class="fas fa-user-plus"></i> Añadir Amigo</h3>
+            <button class="modal-close" onclick="closeModal('add-friend-modal')"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body">
+            <p style="font-size: 0.85rem; color: var(--muted); margin-bottom: 15px;">
+                Escribe el nombre exacto del usuario que deseas agregar a tu lista de chats privados.
+            </p>
+            <div class="form-group-m">
+                <div class="form-input-wrap-m">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="friend-search-input" placeholder="Nombre del usuario (ej. Turista 23)">
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-cancel" onclick="closeModal('add-friend-modal')">Cancelar</button>
+            <button class="btn-confirm" onclick="addFriend()"><i class="fas fa-check"></i> Agregar</button>
+        </div>
+    </div>
+</div>
 
 <!--
 ================================================================
