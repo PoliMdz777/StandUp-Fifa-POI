@@ -798,7 +798,7 @@ textarea::placeholder { color: var(--muted); }
     #remote-stream {
         object-fit: cover;
     }
-    
+
 }
 
 /* ─── SMALL MOBILE (≤ 380px) ─────────────────────── */
@@ -972,6 +972,56 @@ textarea::placeholder { color: var(--muted); }
 
 /* Responsive: móvil */
 @media (max-width: 768px) {
+    /* 1. Ocultamos la barra lateral (contactos/grupos) por defecto */
+    .sidebar {
+        position: fixed;
+        left: -100%; /* Escondida a la izquierda */
+        top: 0;
+        height: 100vh;
+        width: 280px;
+        max-width: 80%;
+        z-index: 9999;
+        transition: left 0.3s ease;
+        box-shadow: 2px 0 10px rgba(0,0,0,0.5);
+    }
+
+    /* Clase que se activa cuando presionas el botón de menú (hamburguesa) */
+    .sidebar.open {
+        left: 0; 
+    }
+
+    /* 2. El área principal (el chat) ocupa toda la pantalla */
+    .main-content, .chat-area {
+        width: 100vw !important;
+        margin-left: 0 !important;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* 3. Ajuste crucial para la caja de texto (Evita que se vea chiquito) */
+    .chat-input-area {
+        padding: 10px 15px;
+        /* El env() ayuda con la barra inferior de los iPhones modernos */
+        padding-bottom: max(10px, env(safe-area-inset-bottom)); 
+        background: var(--card); /* Asegura que tenga fondo y no sea transparente */
+    }
+
+    /* TRUCO: Si la fuente en móvil es menor a 16px, los iPhone hacen un "zoom" 
+       terrible al tocar el input. Esto lo previene: */
+    .chat-input-area input, 
+    .chat-input-area textarea {
+        font-size: 16px !important; 
+        min-height: 45px; /* Más alto para que el dedo atine fácil */
+    }
+
+    /* Hacemos los botones de enviar y adjuntar un poco más grandes para tocar */
+    .attach-btn, .send-btn {
+        width: 45px;
+        height: 45px;
+        font-size: 1.2rem;
+    }
+    
     .videocall-ui {
         width: 100vw !important;
         height: 100vh !important;
