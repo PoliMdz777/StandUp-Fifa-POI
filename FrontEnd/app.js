@@ -11,7 +11,7 @@
 //  Includes: Profile edit, Email, localStorage persistence,
 //  Offline message queue, Real-time status, Responsive,
 //  Per-chat badges, Video call, File sharing, Location
-// ════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════ 
 
 'use strict';
 
