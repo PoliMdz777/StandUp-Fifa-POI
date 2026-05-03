@@ -249,7 +249,7 @@ io.on('connection', (socket) => {
     });
 
     // ── 6. VIDEOLLAMADA ────────────────────────────────────
-    socket.on('call_user', (data) => {
+    /* socket.on('call_user', (data) => {
         const receiverSocketId = connectedUsers.get(data.receiverId);
         if (receiverSocketId) {
             io.to(receiverSocketId).emit('incoming_call', {
@@ -273,6 +273,64 @@ io.on('connection', (socket) => {
     socket.on('call_ended', (data) => {
         const receiverSocketId = connectedUsers.get(data.receiverId);
         if (receiverSocketId) io.to(receiverSocketId).emit('call_ended');
+    }); */
+
+      // Registro de Peer ID
+    socket.on('register_peer_id', ({ userId, peerId }) => {
+        if (!userId || !peerId) return;
+        peerIds.set(userId, peerId);
+        console.log(`📹 Peer ID registrado: ${userId} → ${peerId}`);
+    });
+ 
+    // Iniciar llamada → notificar al receptor
+    socket.on('call_user', (data) => {
+        const receiverSocketId = connectedUsers.get(data.receiverId);
+        if (receiverSocketId) {
+            io.to(receiverSocketId).emit('incoming_call', {
+                callerId:   data.callerId,
+                callerName: data.callerName,
+                peerId:     data.peerId || peerIds.get(data.callerId) || ''
+            });
+            console.log(`📹 Llamada: ${data.callerId} → ${data.receiverId}`);
+        } else {
+            // Receptor offline → notificar al emisor
+            socket.emit('call_rejected', {
+                callerId: data.callerId,
+                reason:   'offline'
+            });
+            console.log(`📵 ${data.receiverId} no está en línea`);
+        }
+    });
+ 
+    // Receptor aceptó → reenviar peerId al emisor
+    socket.on('call_accepted', (data) => {
+        const callerSocketId = connectedUsers.get(data.callerId);
+        if (callerSocketId) {
+            io.to(callerSocketId).emit('call_accepted', {
+                peerId: data.peerId || peerIds.get(socket.userId) || ''
+            });
+            console.log(`✅ Llamada aceptada por ${socket.userId}`);
+        }
+    });
+ 
+    // Receptor rechazó → notificar al emisor
+    socket.on('call_rejected', (data) => {
+        const callerSocketId = connectedUsers.get(data.callerId);
+        if (callerSocketId) {
+            io.to(callerSocketId).emit('call_rejected', {
+                reason: data.reason || 'rechazada'
+            });
+        }
+        console.log(`📵 Llamada rechazada por ${socket.userId || 'usuario'}`);
+    });
+ 
+    // Alguien colgó → notificar al otro
+    socket.on('call_ended', (data) => {
+        const receiverSocketId = connectedUsers.get(data.receiverId);
+        if (receiverSocketId) {
+            io.to(receiverSocketId).emit('call_ended');
+        }
+        console.log(`📵 Llamada terminada por ${socket.userId || 'usuario'}`);
     });
 
     // ── 7. ESTADO ──────────────────────────────────────────
@@ -421,11 +479,47 @@ app.post('/api/send-email', async (req, res) => {
     }
 });
 
-// ─── PEERJS SERVER ─────────────────────────────────────────
-const peerServer = ExpressPeerServer(server, { debug: true, path: '/' });
+// ─── PEERJS SERVER con configuración de ICE ─────────────────────────────────────────
+/* const peerServer = ExpressPeerServer(server, { debug: true, path: '/' });
 app.use('/peerjs', peerServer);
 peerServer.on('connection', (client) => console.log(`📹 PeerJS conectado: ${client.getId()}`));
 peerServer.on('disconnect', (client) => console.log(`📹 PeerJS desconectado: ${client.getId()}`));
+ */
+const peerServer = ExpressPeerServer(server, {
+    debug:       false,
+    path:        '/',
+    allow_discovery: false,        // no exponer lista de peers
+    proxied:     true,             // para Render/Heroku con proxy
+    generateClientIds: false,      // los clientes dan su propio ID
+});
+ 
+app.use('/peerjs', peerServer);
+ 
+peerServer.on('connection', (client) => {
+    console.log(`📹 PeerJS cliente conectado: ${client.getId()}`);
+});
+ 
+peerServer.on('disconnect', (client) => {
+    console.log(`📹 PeerJS cliente desconectado: ${client.getId()}`);
+});
+
+//  TAMBIÉN AGREGA este endpoint REST para que el cliente
+//  pueda obtener los ICE servers desde el servidor (opcional):
+
+// GET /api/ice-servers — devuelve la configuración ICE
+app.get('/api/ice-servers', (req, res) => {
+    res.json({
+        iceServers: [
+            { urls: 'stun:stun.l.google.com:19302'  },
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun2.l.google.com:19302' },
+            { urls: 'stun:global.stun.twilio.com:3478' },
+            // Si tienes TURN de metered.ca, ponlos aquí:
+            // { urls: 'turn:relay.metered.ca:80',  username: process.env.TURN_USER, credential: process.env.TURN_PASS },
+            // { urls: 'turn:relay.metered.ca:443', username: process.env.TURN_USER, credential: process.env.TURN_PASS },
+        ]
+    });
+});
 
 // ─── LEVANTAR SERVIDOR ─────────────────────────────────────
 const PORT = process.env.PORT || 3000;
@@ -443,3 +537,35 @@ server.listen(PORT, () => {
     console.log('   npx ngrok http 3000');
     console.log('');
 });
+
+
+// ──────────────────────────────────────────────────────────────────
+//  NOTAS IMPORTANTES PARA PRODUCCIÓN EN RENDER.COM
+// ──────────────────────────────────────────────────────────────────
+/*
+  1. STUN GRATIS (funciona ~80% de usuarios):
+     Los ICE servers de Google en videocall_enhanced.js son suficientes
+     para la mayoría de conexiones domésticas.
+ 
+  2. TURN (recomendado para producción):
+     Algunos usuarios corporativos o con firewall necesitan TURN.
+     Opciones gratis/baratas:
+     - metered.ca (plan gratuito: 100 GB/mes)
+     - coturn (auto-hosted)
+     
+     Para agregar TURN en Render, crea variables de entorno:
+     TURN_USER=tu_usuario
+     TURN_PASS=tu_contraseña
+     
+     Y descomenta las líneas de TURN en videocall_enhanced.js y aquí.
+ 
+  3. PEERJS EN RENDER:
+     PeerJS funciona bien en Render con WebSockets habilitados.
+     Asegúrate en render.com que el servicio tenga:
+     - "Health Check Path": /api/users  (ya existente)
+     - Sin "Sleep" (usa el plan pagado o mantiene awake)
+ 
+  4. CORS:
+     Si tienes problemas de CORS con PeerJS, agrega:
+     app.use('/peerjs', cors(), peerServer);
+*/
