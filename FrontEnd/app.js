@@ -1220,11 +1220,11 @@ function closeModalOutside(event, id) {
     if (event.target.id===id) closeModal(id);
 }
 
-function openVideoCall() {
+/* function openVideoCall() {
     if (typeof window.openVideoCall === 'function') {
         window.openVideoCall();
     }
-}
+} */
 
 // ─── LOGOUT ───────────────────────────────────────────────
 function logout() {
