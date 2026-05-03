@@ -1505,3 +1505,148 @@ textarea::placeholder { color: var(--muted); }
     color: var(--teal);
     margin-bottom: 2px;
 }
+
+
+/* ── Modal de llamada entrante ──────────────────────────────────── */
+#incoming-call-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.82);
+    backdrop-filter: blur(8px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 99998;
+    padding: 16px;
+}
+#incoming-call-modal.open { display: flex; }
+ 
+.incoming-call-card {
+    background: linear-gradient(160deg, #131B2E 0%, #0A0E1A 100%);
+    border: 1px solid rgba(0,201,167,0.25);
+    border-radius: 24px;
+    padding: 36px 32px 28px;
+    text-align: center;
+    width: 100%;
+    max-width: 360px;
+    box-shadow: 0 30px 80px rgba(0,201,167,0.15), 0 0 0 1px rgba(255,255,255,0.06) inset;
+    animation: ic-slide-up 0.35s cubic-bezier(0.34,1.56,0.64,1);
+}
+@keyframes ic-slide-up {
+    from { transform: translateY(30px) scale(0.9); opacity: 0; }
+    to   { transform: none; opacity: 1; }
+}
+ 
+/* ── Anillo animado ─────────────────────────────────────────────── */
+.ic-ring-wrap {
+    position: relative;
+    width: 100px;
+    height: 100px;
+    margin: 0 auto 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.ic-ring {
+    position: absolute;
+    border-radius: 50%;
+    border: 2px solid rgba(0,201,167,0.4);
+    animation: ic-pulse 1.8s ease-out infinite;
+}
+.ic-ring-1 { width: 100%; height: 100%; animation-delay: 0s; }
+.ic-ring-2 { width: 125%;  height: 125%;  animation-delay: 0.5s; }
+@keyframes ic-pulse {
+    0%   { transform: scale(0.85); opacity: 0.7; }
+    70%  { transform: scale(1.15); opacity: 0;   }
+    100% { transform: scale(1.15); opacity: 0;   }
+}
+ 
+.ic-avatar {
+    width: 78px;
+    height: 78px;
+    border-radius: 50%;
+    border: 3px solid var(--teal, #00C9A7);
+    object-fit: cover;
+    position: relative;
+    z-index: 2;
+    box-shadow: 0 0 0 4px rgba(0,201,167,0.15);
+}
+ 
+/* ── Info ───────────────────────────────────────────────────────── */
+.ic-info { margin-bottom: 28px; }
+.ic-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--teal, #00C9A7);
+    margin-bottom: 6px;
+}
+.ic-info h3 {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #E8EDF5;
+    margin-bottom: 6px;
+}
+.ic-sublabel {
+    font-size: 0.78rem;
+    color: rgba(136,150,176,0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+ 
+/* ── Botones ────────────────────────────────────────────────────── */
+.ic-actions {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+}
+.ic-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 16px 20px;
+    border: none;
+    border-radius: 18px;
+    cursor: pointer;
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.78rem;
+    font-weight: 600;
+    transition: all 0.2s cubic-bezier(0.34,1.56,0.64,1);
+    min-width: 80px;
+}
+.ic-btn i { font-size: 1.4rem; }
+ 
+.ic-reject {
+    background: rgba(231,76,60,0.15);
+    border: 1px solid rgba(231,76,60,0.4);
+    color: #e74c3c;
+}
+.ic-reject:hover {
+    background: rgba(231,76,60,0.3);
+    transform: scale(1.08);
+    box-shadow: 0 8px 24px rgba(231,76,60,0.3);
+}
+ 
+.ic-accept {
+    background: rgba(0,201,167,0.15);
+    border: 1px solid rgba(0,201,167,0.45);
+    color: #00C9A7;
+}
+.ic-accept:hover {
+    background: rgba(0,201,167,0.3);
+    transform: scale(1.08);
+    box-shadow: 0 8px 24px rgba(0,201,167,0.3);
+}
+ 
+/* ── Responsivo móvil ───────────────────────────────────────────── */
+@media (max-width: 600px) {
+    .incoming-call-card {
+        padding: 28px 20px 22px;
+        max-width: 320px;
+    }
+    .ic-btn { padding: 14px 16px; min-width: 70px; }
+}
