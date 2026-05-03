@@ -11,7 +11,7 @@
 //  Includes: Profile edit, Email, localStorage persistence,
 //  Offline message queue, Real-time status, Responsive,
 //  Per-chat badges, Video call, File sharing, Location
-// ════════════════════════════════════════════════════════ 
+// ════════════════════════════════════════════════════════
 
 'use strict';
 
@@ -170,8 +170,15 @@ socket = io(_serverUrl, {
         showToast('Conectado al servidor en tiempo real', 'success');
         // Flush pending offline messages for current user
         flushOfflineQueue(currentUser.name);
+
+         // [AGREGAR] Iniciar PeerJS y registrar listeners de videollamada
+    if (typeof window.initPeer === 'function') window.initPeer();
+    if (typeof window.registerCallSocketListeners === 'function') {
+        window.registerCallSocketListeners(socket);
+    }
+
         // Inicializar PeerJS para videollamadas
-        initPeer();
+      //  initPeer();
         loadRealUsers();
     });
 
@@ -225,7 +232,7 @@ socket = io(_serverUrl, {
     });
 
     // ── VIDEOLLAMADA: señalización via Socket.io ────────────
-    socket.on('incoming_call', (data) => {
+  /*   socket.on('incoming_call', (data) => {
         const accept = confirm(`📹 Llamada entrante de ${data.callerName}. ¿Aceptar?`);
          if (accept) {
         // Esperar a que myPeer esté listo antes de enviar call_accepted
@@ -244,9 +251,9 @@ socket = io(_serverUrl, {
             socket.emit('call_rejected', { callerId: data.callerId });
             showToast('Llamada rechazada', 'info');
         }
-    });
+    }); */
 
-    socket.on('call_accepted', (data) => {
+   /*  socket.on('call_accepted', (data) => {
         // El otro usuario aceptó — hacer la llamada PeerJS real
         if (myPeer && localStream && data.peerId) {
             const call = myPeer.call(data.peerId, localStream);
@@ -271,7 +278,7 @@ socket = io(_serverUrl, {
         showToast('📵 El otro usuario colgó', 'info');
         endCall();
     });
-
+ */
 } catch(e) {
     console.warn('Socket.io no cargado:', e);
 }
@@ -1186,7 +1193,7 @@ function openModal(id) {
     document.getElementById(id)?.classList.add('open');
 }
 let _closingVideoCallModal = false;
-function closeModal(id) {
+/* function closeModal(id) {
     document.getElementById(id)?.classList.remove('open');
     if (id === 'videocall-modal') {
         if (!_closingVideoCallModal) {
@@ -1196,9 +1203,27 @@ function closeModal(id) {
         }
     }
     if (id === 'file-modal') resetFileModal();
+} */
+
+// REEMPLAZA closeModal() en app.js con esta versión:
+function closeModal(id) {
+    document.getElementById(id)?.classList.remove('open');
+    if (id === 'videocall-modal') {
+        // endCall ya maneja el cierre del modal internamente
+        // así que solo lo llamamos si la llamada sigue activa
+        if (typeof window.endCall === 'function') window.endCall();
+    }
+    if (id === 'file-modal') resetFileModal();
 }
+
 function closeModalOutside(event, id) {
     if (event.target.id===id) closeModal(id);
+}
+
+function openVideoCall() {
+    if (typeof window.openVideoCall === 'function') {
+        window.openVideoCall();
+    }
 }
 
 // ─── LOGOUT ───────────────────────────────────────────────
