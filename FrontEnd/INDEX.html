@@ -884,6 +884,33 @@
     </div>
 </div>
 
+<div class="modal-overlay" id="incoming-call-modal">
+    <div class="incoming-call-card">
+        <!-- Anillo animado -->
+        <div class="ic-ring-wrap">
+            <div class="ic-ring ic-ring-1"></div>
+            <div class="ic-ring ic-ring-2"></div>
+            <img src="" id="ic-caller-avatar" alt="Avatar" class="ic-avatar">
+        </div>
+ 
+        <div class="ic-info">
+            <p class="ic-label">Llamada entrante</p>
+            <h3 id="ic-caller-name">Usuario</h3>
+            <p class="ic-sublabel"><i class="fas fa-video"></i> Videollamada · FIFA 2026 Tourist Hub</p>
+        </div>
+ 
+        <div class="ic-actions">
+            <button class="ic-btn ic-reject" onclick="window.rejectIncomingCall()">
+                <i class="fas fa-phone-slash"></i>
+                <span>Rechazar</span>
+            </button>
+            <button class="ic-btn ic-accept" onclick="window.acceptIncomingCall()">
+                <i class="fas fa-video"></i>
+                <span>Aceptar</span>
+            </button>
+        </div>
+    </div>
+</div>
 <!-- TOAST CONTAINER -->
 <div class="toast-container" id="toast-container"></div>
 
