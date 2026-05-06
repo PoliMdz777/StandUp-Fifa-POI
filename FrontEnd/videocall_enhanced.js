@@ -202,9 +202,15 @@ window.registerCallSocketListeners = function (socket) {
     // ── Rechazó o no contestó ────────────────────────────────────
     socket.on('call_rejected', (data) => {
         clearTimeout(_callTimeout);
+         let mensaje = 'rechazó la llamada';
+         if (data?.reason === 'ocupado') mensaje = 'está en otra llamada';
+    else if (data?.reason === 'offline') mensaje = 'no está en línea';
+    window.showToast?.(`📵 El usuario ${mensaje}`, 'info');
+    _handleCallEnded();
+        /* 
         const reason = data?.reason === 'ocupado' ? 'está en otra llamada' : 'rechazó la llamada';
         window.showToast?.(`📵 El usuario ${reason}`, 'info');
-        _handleCallEnded();
+        _handleCallEnded(); */
     });
 
     // ── El otro colgó ────────────────────────────────────────────
@@ -235,7 +241,11 @@ window.openVideoCall = async function () {
     if (statusEl && !statusEl.classList.contains('online')) {
         window.showToast?.(`📵 ${chat.name} no está en línea`, 'error');
         return;
-    }
+    } else {
+    // Fallback: si no tiene indicador, asumir offline (mejor prevenir)
+    window.showToast?.(`📵 ${chat.name} no está en línea`, 'error');
+    return;
+}
 
     // Pedir cámara ANTES de mostrar el modal
     try {
