@@ -351,6 +351,12 @@ function selectChat(type, id, name, avatarType, liEl) {
                   statusDot?.classList.contains('away')    ? 'away'    :
                   statusDot?.classList.contains('busy')    ? 'busy'    : 'offline';
 
+         const statusEl = document.getElementById(`status-${id}`);
+    const uStatus = statusEl?.classList.contains('online') ? 'online' : 'offline';
+    // ...
+    vcBtn.style.display = uStatus === 'online' ? 'flex' : 'none';  // <-- solo si online
+    emailBtn.style.display = 'flex';
+        
         const statusColors = { online:'var(--success)', offline:'var(--muted)', away:'var(--warning)', busy:'var(--danger)' };
         statusEl.innerHTML = `<i class="fas fa-circle" style="color:${statusColors[uStatus]};font-size:.55rem"></i> ${uStatus==='online'?'En línea':'Desconectado'}`;
         vcBtn.style.display = 'flex';
