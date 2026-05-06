@@ -1429,7 +1429,8 @@ function renderFriendsList() {
             li.innerHTML = `
                 <div class="contact-avatar">
                     <img src="${u.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${u.name}`}" alt="">
-                    <span class="status-indicator ${u.status || 'offline'}"></span>
+                    //  <span class="status-indicator ${u.status || 'offline'}"></span>
+                    <span class="status-indicator ${u.status || 'offline'}" id="status-${escHtml(u.name)}"></span>
                 </div>
                 <div class="contact-info">
                     <span class="contact-name">${escHtml(u.name)}</span>
