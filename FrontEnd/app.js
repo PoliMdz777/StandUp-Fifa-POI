@@ -346,25 +346,32 @@ function selectChat(type, id, name, avatarType, liEl) {
         avatarEl.innerHTML = '<div style="width:100%;height:100%;background:linear-gradient(135deg,#00C9A7,#5B21B6);display:flex;align-items:center;justify-content:center;font-size:1.2rem;border-radius:10px;">🤖</div>';
     } else {
         
-    const statusDot = document.getElementById(`status-${id}`);
-    const uStatus   = statusDot?.classList.contains('online')  ? 'online'  :
-                  statusDot?.classList.contains('away')    ? 'away'    :
-                  statusDot?.classList.contains('busy')    ? 'busy'    : 'offline';
+ // Si es chat privado (no grupo ni IA)
+        const statusEl = document.getElementById(`status-${id}`);
+        const uStatus = (statusEl && statusEl.classList.contains('online')) ? 'online' 
+                       : (statusEl && statusEl.classList.contains('away'))   ? 'away' 
+                       : (statusEl && statusEl.classList.contains('busy'))   ? 'busy' 
+                       : 'offline';
 
-         const statusEl = document.getElementById(`status-${id}`);
-    const uStatus = statusEl?.classList.contains('online') ? 'online' : 'offline';
-    // ...
-    vcBtn.style.display = uStatus === 'online' ? 'flex' : 'none';  // <-- solo si online
-    emailBtn.style.display = 'flex';
-        
-        const statusColors = { online:'var(--success)', offline:'var(--muted)', away:'var(--warning)', busy:'var(--danger)' };
-        statusEl.innerHTML = `<i class="fas fa-circle" style="color:${statusColors[uStatus]};font-size:.55rem"></i> ${uStatus==='online'?'En línea':'Desconectado'}`;
-        vcBtn.style.display = 'flex';
-        emailBtn.style.display = 'flex';
-        avatarEl.innerHTML = `<img src="https://api.dicebear.com/7.x/adventurer/svg?seed=${id}" style="width:100%;height:100%;border-radius:10px;" alt="">`;
-        document.getElementById('vc-remote-name').textContent   = name;
-        document.getElementById('vc-caller-name').textContent   = `Llamando a ${name}`;
-        document.getElementById('vc-remote-avatar').src = `https://api.dicebear.com/7.x/adventurer/svg?seed=${id}`;
+        const statusColors = { online: 'var(--success)', offline: 'var(--muted)', away: 'var(--warning)', busy: 'var(--danger)' };
+        const statusElText = document.getElementById('current-chat-status');
+        if (statusElText) statusElText.innerHTML = `<i class="fas fa-circle" style="color:${statusColors[uStatus]};font-size:.55rem"></i> ${uStatus==='online'?'En línea':'Desconectado'}`;
+
+        // Mostrar botón de videollamada SOLO si el contacto está en línea
+        const vcBtn = document.getElementById('videocall-btn');
+        const emailBtn = document.getElementById('email-chat-btn');
+        if (vcBtn) vcBtn.style.display = uStatus === 'online' ? 'flex' : 'none';
+        if (emailBtn) emailBtn.style.display = 'flex';
+
+        // Avatar y nombres
+        const avatarEl = document.getElementById('current-chat-avatar');
+        if (avatarEl) avatarEl.innerHTML = `<img src="https://api.dicebear.com/7.x/adventurer/svg?seed=${id}" style="width:100%;height:100%;border-radius:10px;" alt="">`;
+        const remoteNameEl = document.getElementById('vc-remote-name');
+        const callerNameEl = document.getElementById('vc-caller-name');
+        const remoteAvatarEl = document.getElementById('vc-remote-avatar');
+        if (remoteNameEl) remoteNameEl.textContent = name;
+        if (callerNameEl) callerNameEl.textContent = `Llamando a ${name}`;
+        if (remoteAvatarEl) remoteAvatarEl.src = `https://api.dicebear.com/7.x/adventurer/svg?seed=${id}`;
     }
 
      // Cargar historial — Firestore tiene prioridad, localStorage como fallback
@@ -1435,7 +1442,7 @@ function renderFriendsList() {
             li.innerHTML = `
                 <div class="contact-avatar">
                     <img src="${u.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${u.name}`}" alt="">
-                    //  <span class="status-indicator ${u.status || 'offline'}"></span>
+                  
                     <span class="status-indicator ${u.status || 'offline'}" id="status-${escHtml(u.name)}"></span>
                 </div>
                 <div class="contact-info">
