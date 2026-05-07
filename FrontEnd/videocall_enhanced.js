@@ -253,7 +253,7 @@ if (!statusEl || !statusEl.classList.contains('online')) {
     window.showToast?.(`📵 ${chat.name} no está en línea`, 'error');
     return;
 }
- */
+ */ 
 
     // Pedir cámara ANTES de mostrar el modal
     try {
