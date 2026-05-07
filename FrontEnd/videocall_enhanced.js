@@ -243,17 +243,31 @@ window.openVideoCall = async function () {
         return;
     } */
 
-    const statusEl = document.getElementById(`status-${chat.id}`);
+   /*  const statusEl = document.getElementById(`status-${chat.id}`);
 if (!statusEl || !statusEl.classList.contains('online')) {
     window.showToast?.(`📵 ${chat.name} no está en línea`, 'error');
     return;
+} */
+
+    // ── Verificar conexión al servidor ──────────────────────────────
+if (!window.socket?.connected) {
+    window.showToast?.('Sin conexión al servidor. Intenta de nuevo.', 'error');
+    return;
 }
-    /* else {
-    // Fallback: si no tiene indicador, asumir offline (mejor prevenir)
+
+// ── Verificar que el contacto esté en línea ─────────────────────
+const statusEl = document.getElementById(`status-${chat.id}`);
+// Si no existe el elemento, asumimos offline (no false-positive)
+const isOnline  = statusEl ? statusEl.classList.contains('online') : false;
+
+if (!isOnline) {
     window.showToast?.(`📵 ${chat.name} no está en línea`, 'error');
     return;
 }
- */ 
+     else {
+    window.showToast?.('Sin conexión al servidor para videollamadas', 'error');
+    _handleCallEnded();
+}
 
     // Pedir cámara ANTES de mostrar el modal
     try {
