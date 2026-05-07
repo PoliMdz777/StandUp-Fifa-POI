@@ -241,10 +241,12 @@ window.openVideoCall = async function () {
     if (statusEl && !statusEl.classList.contains('online')) {
         window.showToast?.(`📵 ${chat.name} no está en línea`, 'error');
         return;
-    } else {
+    }
+    /* else {
     // Fallback: si no tiene indicador, asumir offline (mejor prevenir)
     window.showToast?.(`📵 ${chat.name} no está en línea`, 'error');
     return;
+ */
 }
 
     // Pedir cámara ANTES de mostrar el modal
