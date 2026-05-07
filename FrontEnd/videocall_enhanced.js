@@ -252,8 +252,8 @@ if (!statusEl || !statusEl.classList.contains('online')) {
     // Fallback: si no tiene indicador, asumir offline (mejor prevenir)
     window.showToast?.(`📵 ${chat.name} no está en línea`, 'error');
     return;
- */
 }
+ */
 
     // Pedir cámara ANTES de mostrar el modal
     try {
