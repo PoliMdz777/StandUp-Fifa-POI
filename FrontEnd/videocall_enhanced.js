@@ -236,12 +236,18 @@ window.openVideoCall = async function () {
         return;
     }
 
-    // Verificar que el contacto esté en línea
+/*     // Verificar que el contacto esté en línea
     const statusEl = document.getElementById(`status-${chat.id}`);
     if (statusEl && !statusEl.classList.contains('online')) {
         window.showToast?.(`📵 ${chat.name} no está en línea`, 'error');
         return;
-    }
+    } */
+
+    const statusEl = document.getElementById(`status-${chat.id}`);
+if (!statusEl || !statusEl.classList.contains('online')) {
+    window.showToast?.(`📵 ${chat.name} no está en línea`, 'error');
+    return;
+}
     /* else {
     // Fallback: si no tiene indicador, asumir offline (mejor prevenir)
     window.showToast?.(`📵 ${chat.name} no está en línea`, 'error');
