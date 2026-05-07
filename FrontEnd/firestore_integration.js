@@ -18,6 +18,30 @@ import {
     updateDoc
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
+// ================================================================
+//  FUNCIÓN 7: Subir archivo a Firebase Storage
+//  Devuelve la URL permanente accesible desde cualquier dispositivo
+// ================================================================
+import { getStorage, ref, uploadBytes, getDownloadURL }
+    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
+
+//const storage_fs = getStorage(firebaseApp);
+
+window.db_uploadFile = async function(file, folder = 'chat-files') {
+    if (!file) throw new Error('No se proporcionó archivo');
+    if (file.size > 10 * 1024 * 1024) throw new Error('Archivo mayor a 10MB');
+
+    const timestamp = Date.now();
+    const safeName  = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const path      = `${folder}/${timestamp}_${safeName}`;
+    const storageRef = ref(storage_fs, path);
+
+    const snapshot    = await uploadBytes(storageRef, file);
+    const downloadURL = await getDownloadURL(snapshot.ref);
+
+    console.log('✅ Archivo subido a Storage:', downloadURL);
+    return { url: downloadURL, name: file.name, size: file.size, type: file.type };
+};
 // ── Tus credenciales de Firebase (ya las tienes correctas) ───────
 const firebaseConfig = {
     apiKey:            "AIzaSyBQCxLixqM8qDquL3-xkMjkyupBlcgl2ek",
@@ -30,6 +54,7 @@ const firebaseConfig = {
 
 const firebaseApp = initializeApp(firebaseConfig);
 const db          = getFirestore(firebaseApp);
+const storage_fs  = getStorage(firebaseApp);
 
 console.log('🔥 Firestore conectado:', firebaseConfig.projectId);
 
@@ -167,14 +192,14 @@ window.db_saveReward = async function(userId, reason, points, total) {
     }
 };
 
-// ================================================================
+/* // ================================================================
 //  FUNCIÓN 7: Subir archivo a Firebase Storage
 //  Devuelve la URL permanente accesible desde cualquier dispositivo
 // ================================================================
 import { getStorage, ref, uploadBytes, getDownloadURL }
     from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
 
-const storage_fs = getStorage(firebaseApp);
+//const storage_fs = getStorage(firebaseApp);
 
 window.db_uploadFile = async function(file, folder = 'chat-files') {
     if (!file) throw new Error('No se proporcionó archivo');
@@ -190,7 +215,7 @@ window.db_uploadFile = async function(file, folder = 'chat-files') {
 
     console.log('✅ Archivo subido a Storage:', downloadURL);
     return { url: downloadURL, name: file.name, size: file.size, type: file.type };
-};
+}; */
 
 // Indicador visual de que Firestore está listo
 window.__FIRESTORE_READY__ = true;
