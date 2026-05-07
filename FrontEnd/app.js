@@ -193,6 +193,20 @@ socket = io(_serverUrl, {
         saveMessage(data.groupId, msgObj);
         if (isCurrentChat) {
             appendMessage(data.message,'received',data.senderId,time,data.fileUrl,data.fileName,data.type,data.locationUrl);
+
+            // AGREGA justo después del appendMessage:
+            if (data.msgType === 'file' || data.type === 'file') {
+                saveMessage(data.groupId, {
+                senderId:  data.senderId,
+                message:   data.message || '',
+                type:      'received',
+                msgType:   'file',
+                fileName:  data.fileName,
+                fileUrl:   data.fileUrl,
+                time:      time
+              });
+           }
+            
             if (document.getElementById('chat-section').style.display==='none') {
                 incrementChatBadge('chat-notif');
             }
@@ -215,6 +229,18 @@ socket = io(_serverUrl, {
         saveMessage(data.senderId, msgObj);
         if (isCurrentChat) {
             appendMessage(data.message,'received',data.senderId,time,data.fileUrl,data.fileName,data.type,data.locationUrl);
+
+            if (data.msgType === 'file' || data.type === 'file') {
+                saveMessage(data.senderId, {
+                senderId:  data.senderId,
+                message:   data.message || '',
+                type:      'received',
+                msgType:   'file',
+                fileName:  data.fileName,
+                fileUrl:   data.fileUrl,
+                time:      time
+            });
+        }
         } else {
             incrementContactBadge(data.senderId);
             updateContactPreview(data.senderId, data.message||'📎');
