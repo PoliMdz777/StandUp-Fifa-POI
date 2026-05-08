@@ -1,8 +1,20 @@
 [
   {
-    "origin": ["https://standup-fifa-poi.onrender.com", "http://localhost:5501", "http://localhost:3000"],
-    "method": ["GET", "POST", "PUT", "DELETE", "HEAD"],
-    "responseHeader": ["Content-Type", "Access-Control-Allow-Origin", "Content-Length"],
+    "origin": [
+      "https://standup-fifa-poi.onrender.com",
+      "http://localhost:5501",
+      "http://localhost:3000",
+      "http://127.0.0.1:5500",
+      "http://127.0.0.1:5501"
+    ],
+    "method": ["GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS"],
+    "responseHeader": [
+      "Content-Type",
+      "Access-Control-Allow-Origin",
+      "Content-Length",
+      "Authorization",
+      "X-Requested-With"
+    ],
     "maxAgeSeconds": 3600
   }
 ]
