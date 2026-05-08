@@ -236,44 +236,21 @@ window.openVideoCall = async function () {
         return;
     }
 
-/*     // Verificar que el contacto esté en línea
+    // 1. Verificar conexión al servidor
+    if (!window.socket?.connected) {
+        window.showToast?.('Sin conexión al servidor. Intenta de nuevo.', 'error');
+        return;
+    }
+
+    // 2. Verificar que el contacto esté en línea
     const statusEl = document.getElementById(`status-${chat.id}`);
-    if (statusEl && !statusEl.classList.contains('online')) {
+    // Si no existe el indicador o no tiene clase 'online', no permitir llamada
+    if (!statusEl || !statusEl.classList.contains('online')) {
         window.showToast?.(`📵 ${chat.name} no está en línea`, 'error');
         return;
-    } */
+    }
 
-   /*  const statusEl = document.getElementById(`status-${chat.id}`);
-if (!statusEl || !statusEl.classList.contains('online')) {
-    window.showToast?.(`📵 ${chat.name} no está en línea`, 'error');
-    return;
-} */
-
-    // ── Verificar conexión al servidor ──────────────────────────────
-if (!window.socket?.connected) {
-    window.showToast?.('Sin conexión al servidor. Intenta de nuevo.', 'error');
-    return;
-}
-
-// ── Verificar que el contacto esté en línea ─────────────────────
-const statusEl = document.getElementById(`status-${chat.id}`);
-    if (!statusEl || !statusEl.classList.contains('online')) {
-    window.showToast?.(`📵 ${chat.name} no está en línea`, 'error');
-    return;
-}
-// Si no existe el elemento, asumimos offline (no false-positive)
-const isOnline  = statusEl ? statusEl.classList.contains('online') : false;
-
-if (!isOnline) {
-    window.showToast?.(`📵 ${chat.name} no está en línea`, 'error');
-    return;
-}
-     else {
-    window.showToast?.('Sin conexión al servidor para videollamadas', 'error');
-    _handleCallEnded();
-}
-
-    // Pedir cámara ANTES de mostrar el modal
+    // 3. Pedir cámara y micrófono
     try {
         await _startCamera();
     } catch (err) {
@@ -281,35 +258,26 @@ if (!isOnline) {
         return;
     }
 
+    // 4. Abrir modal y emitir señal de llamada
     _remoteUserId = chat.id;
     _openCallModal(chat.name, chat.id);
 
-    const vc = document.getElementById('vc-connecting');
-    if (vc) { vc.style.display = 'flex'; }
+    const connecting = document.getElementById('vc-connecting');
+    if (connecting) connecting.style.display = 'flex';
 
-    if (window.socket?.connected) {
-        window.socket.emit('call_user', {
-            callerId:   (window.currentUser || {}).name,
-            callerName: (window.currentUser || {}).name,
-            receiverId: chat.id,
-            peerId:     window.myPeerId || _myPeer?.id || ''
-        });
-        window.showToast?.(`📞 Llamando a ${chat.name}…`, 'info');
+    window.socket.emit('call_user', {
+        callerId:   (window.currentUser || {}).name,
+        callerName: (window.currentUser || {}).name,
+        receiverId: chat.id,
+        peerId:     window.myPeerId || _myPeer?.id || ''
+    });
+    window.showToast?.(`📞 Llamando a ${chat.name}…`, 'info');
 
-        // Timeout de 35 s → cancelar si no responde
-        _callTimeout = setTimeout(() => {
-            window.showToast?.(`⏱️ ${chat.name} no respondió`, 'info');
-            _handleCallEnded();
-        }, 35000);
-    } else {
-        // Modo demo (sin servidor)
-        setTimeout(() => {
-            const c = document.getElementById('vc-connecting');
-            if (c) c.style.display = 'none';
-            _startTimer();
-            window.showToast?.('📹 Modo demo activo (sin servidor)', 'info');
-        }, 2000);
-    }
+    // Timeout de 35 s por si no responde
+    _callTimeout = setTimeout(() => {
+        window.showToast?.(`⏱️ ${chat.name} no respondió`, 'info');
+        _handleCallEnded();
+    }, 35000);
 };
 
 // ════════════════════════════════════════════════════════════
