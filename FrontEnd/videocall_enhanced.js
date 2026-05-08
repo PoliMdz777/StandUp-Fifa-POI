@@ -257,6 +257,10 @@ if (!window.socket?.connected) {
 
 // ── Verificar que el contacto esté en línea ─────────────────────
 const statusEl = document.getElementById(`status-${chat.id}`);
+    if (!statusEl || !statusEl.classList.contains('online')) {
+    window.showToast?.(`📵 ${chat.name} no está en línea`, 'error');
+    return;
+}
 // Si no existe el elemento, asumimos offline (no false-positive)
 const isOnline  = statusEl ? statusEl.classList.contains('online') : false;
 
