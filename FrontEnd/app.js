@@ -844,13 +844,27 @@ function updateStatusDot(status) {
     dot.style.background = colors[status] || colors.online;
 }
 function updateContactStatus(userId, status) {
-    document.querySelectorAll('.contact-item').forEach(item => {
+     // Intentar primero por ID exacto (para contactos dinámicos y estáticos)
+  const dotById = document.getElementById(`status-${userId}`);
+  if (dotById) {
+    dotById.className = `status-indicator ${status}`;
+  }
+    // Luego por nombre (respaldo)
+  document.querySelectorAll('.contact-item').forEach(item => {
+    const nameEl = item.querySelector('.contact-name');
+    if (nameEl && nameEl.textContent.trim().toLowerCase() === userId.toLowerCase()) {
+      const dot = item.querySelector('.status-indicator');
+      if (dot) dot.className = `status-indicator ${status}`;
+    }
+  });
+    
+/*     document.querySelectorAll('.contact-item').forEach(item => {
         const nameEl = item.querySelector('.contact-name');
         if (nameEl && nameEl.textContent.toLowerCase().includes(userId.toLowerCase())) {
             const dot = item.querySelector('.status-indicator');
             if (dot) dot.className = `status-indicator ${status}`;
         }
-    });
+    }); */
 }
 
 // ─── CREATE GROUP ─────────────────────────────────────────
