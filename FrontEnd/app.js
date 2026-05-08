@@ -165,6 +165,9 @@ socket = io(_serverUrl, {
     window.socket = socket; 
 
     socket.on('connect', () => {
+         console.log('✅ Socket conectado:', socket.id);
+    window.socket = socket; // Mantener sincronizado en reconexiones
+    socket.emit('user_connected', currentUser.name);
         console.log('✅ Socket conectado:', socket.id);
         socket.emit('user_connected', currentUser.name);
         socket.emit('join_group', 'grupo_tour');
