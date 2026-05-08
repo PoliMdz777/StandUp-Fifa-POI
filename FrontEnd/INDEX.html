@@ -851,8 +851,12 @@
             <div class="file-drop-area" id="file-drop" ondragover="event.preventDefault()" ondrop="handleDrop(event)">
                 <i class="fas fa-cloud-upload-alt"></i><p>Arrastra un archivo o</p>
                 <button onclick="document.getElementById('file-input2').click()">Seleccionar archivo</button>
-                <input type="file" id="file-input2" style="display:none" accept="image/*,.pdf,.txt" onchange="previewFile(event)">
-                <p class="file-types">Imágenes, PDF, TXT · Máx 10MB</p>
+            <!--     <input type="file" id="file-input2" style="display:none" accept="image/*,.pdf,.txt" onchange="previewFile(event)">
+                <p class="file-types">Imágenes, PDF, TXT · Máx 10MB</p> -->
+                <input type="file" id="file-input2" style="display:none"
+                    accept="image/*,video/*,audio/*,.pdf,.txt,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip"
+                    onchange="previewFile(event)">
+                <p class="file-types">Imágenes · Video · Audio · PDF · Word · Excel · PowerPoint · ZIP · Máx 10MB</p>
             </div>
             <div id="file-preview-area" style="display:none;">
                 <img id="img-preview" src="" alt="" style="max-width:100%;border-radius:8px;display:none;margin-bottom:8px;">
