@@ -162,6 +162,7 @@ socket = io(_serverUrl, {
     timeout: 20000,
     forceNew: true
 });
+    window.socket = socket; 
 
     socket.on('connect', () => {
         console.log('✅ Socket conectado:', socket.id);
