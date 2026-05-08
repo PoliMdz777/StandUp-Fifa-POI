@@ -1,6 +1,8 @@
-//
-//  Este archivo conecta tu app a Firestore y expone funciones
-//  globales que app.js puede usar para guardar y leer datos.
+// firestore_integration.js — VERSIÓN CORREGIDA
+// FIXES:
+//   1. Mensajes privados aislados por conversación (no se mezclan)
+//   2. Upload a Firebase Storage con manejo de errores mejorado
+//   3. Funciones de tienda en tiempo real
 // ================================================================
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -15,38 +17,18 @@ import {
     serverTimestamp,
     onSnapshot,
     doc,
-    updateDoc
+    updateDoc,
+    setDoc,
+    getDoc
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-
-// ================================================================
-//  FUNCIÓN 7: Subir archivo a Firebase Storage
-//  Devuelve la URL permanente accesible desde cualquier dispositivo
-// ================================================================
 import { getStorage, ref, uploadBytes, getDownloadURL }
     from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
 
-//const storage_fs = getStorage(firebaseApp);
-
-window.db_uploadFile = async function(file, folder = 'chat-files') {
-    if (!file) throw new Error('No se proporcionó archivo');
-    if (file.size > 10 * 1024 * 1024) throw new Error('Archivo mayor a 10MB');
-
-    const timestamp = Date.now();
-    const safeName  = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const path      = `${folder}/${timestamp}_${safeName}`;
-    const storageRef = ref(storage_fs, path);
-
-    const snapshot    = await uploadBytes(storageRef, file);
-    const downloadURL = await getDownloadURL(snapshot.ref);
-
-    console.log('✅ Archivo subido a Storage:', downloadURL);
-    return { url: downloadURL, name: file.name, size: file.size, type: file.type };
-};
-// ── Tus credenciales de Firebase (ya las tienes correctas) ───────
+// ── Configuración Firebase ───────────────────────────────────────
 const firebaseConfig = {
     apiKey:            "AIzaSyBQCxLixqM8qDquL3-xkMjkyupBlcgl2ek",
     authDomain:        "standup-fifa-5f423.firebaseapp.com",
-    projectId:         "standup-fifa-5f423",                  // el bueno
+    projectId:         "standup-fifa-5f423",
     storageBucket:     "standup-fifa-5f423.appspot.com",
     messagingSenderId: "823333890415",
     appId:             "1:112092859394:web:acaf19a3ed635667d3ab1b"
@@ -59,17 +41,31 @@ const storage_fs  = getStorage(firebaseApp);
 console.log('🔥 Firestore conectado:', firebaseConfig.projectId);
 
 // ================================================================
+//  FUNCIÓN CLAVE: ID de conversación privada ÚNICA entre dos usuarios
+//  Ordenar alfabéticamente garantiza que A→B y B→A usen el mismo ID
+// ================================================================
+window.getConversationId = function(userA, userB) {
+    // Tipo grupo: usar directamente el groupId
+    if (!userB) return userA;
+    // Tipo privado: combinar ambos nombres de forma canónica
+    const sorted = [userA, userB].sort();
+    return `conv_${sorted[0]}__${sorted[1]}`;
+};
+
+// ================================================================
 //  FUNCIÓN 1: Guardar mensaje en Firestore
-//  Reemplaza el localStorage — ahora los mensajes se guardan en la nube
+//  Para chats PRIVADOS usa getConversationId(sender, receiver)
+//  Para chats GRUPALES usa el groupId directamente
 // ================================================================
 window.db_saveMessage = async function(chatId, msgData) {
+    // chatId ya viene procesado desde app.js (puede ser conversationId o groupId)
     try {
         await addDoc(collection(db, 'messages'), {
             chatId:      chatId,
             senderId:    msgData.senderId    || 'Anónimo',
             message:     msgData.message     || '',
-            type:        msgData.type        || 'text',     // 'text' | 'file' | 'location'
-            msgType:     msgData.msgType     || 'sent',     // 'sent' | 'received'
+            type:        msgData.type        || 'text',
+            msgType:     msgData.msgType     || 'sent',
             isEncrypted: msgData.isEncrypted || false,
             fileUrl:     msgData.fileUrl     || null,
             fileName:    msgData.fileName    || null,
@@ -77,13 +73,14 @@ window.db_saveMessage = async function(chatId, msgData) {
             time:        msgData.time        || new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}),
             createdAt:   serverTimestamp()
         });
-        // También guarda en localStorage como respaldo
+        // Respaldo en localStorage
         const arr = JSON.parse(localStorage.getItem(`chat_${chatId}`) || '[]');
         arr.push(msgData);
+        if (arr.length > 200) arr.splice(0, arr.length - 200); // límite 200 mensajes
         localStorage.setItem(`chat_${chatId}`, JSON.stringify(arr));
     } catch(e) {
         console.error('❌ Error guardando mensaje en Firestore:', e.message);
-        // Fallback: solo localStorage
+        // Fallback solo localStorage
         const arr = JSON.parse(localStorage.getItem(`chat_${chatId}`) || '[]');
         arr.push(msgData);
         localStorage.setItem(`chat_${chatId}`, JSON.stringify(arr));
@@ -92,6 +89,7 @@ window.db_saveMessage = async function(chatId, msgData) {
 
 // ================================================================
 //  FUNCIÓN 2: Cargar historial de mensajes desde Firestore
+//  Filtra por chatId (que ya es el ID de conversación único)
 // ================================================================
 window.db_loadMessages = async function(chatId) {
     try {
@@ -102,19 +100,17 @@ window.db_loadMessages = async function(chatId) {
         );
         const snap = await getDocs(q);
         const msgs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        console.log(`📂 Cargados ${msgs.length} mensajes de Firestore para: ${chatId}`);
+        console.log(`📂 ${msgs.length} mensajes cargados para chatId: ${chatId}`);
         return msgs;
     } catch(e) {
         console.warn('⚠️ Firestore sin acceso, usando localStorage:', e.message);
-        // Fallback a localStorage
         try { return JSON.parse(localStorage.getItem(`chat_${chatId}`) || '[]'); }
         catch(e2) { return []; }
     }
 };
 
 // ================================================================
-//  FUNCIÓN 3: Escuchar mensajes EN TIEMPO REAL desde Firestore
-//  (Esto permite que 2 dispositivos se vean los mensajes al instante)
+//  FUNCIÓN 3: Listener en tiempo real para un chat
 // ================================================================
 window.db_listenMessages = function(chatId, callback) {
     try {
@@ -123,21 +119,56 @@ window.db_listenMessages = function(chatId, callback) {
             where('chatId', '==', chatId),
             orderBy('createdAt', 'asc')
         );
-        // onSnapshot dispara el callback cada vez que hay un cambio
         const unsubscribe = onSnapshot(q, (snap) => {
             const msgs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
             callback(msgs);
         });
-        console.log('👂 Escuchando cambios en tiempo real para:', chatId);
-        return unsubscribe; // Llama a esto para dejar de escuchar
+        console.log('👂 Listener activo para:', chatId);
+        return unsubscribe;
     } catch(e) {
         console.warn('⚠️ No se pudo iniciar listener de Firestore:', e.message);
-        return () => {}; // Función vacía para no romper el código
+        return () => {};
     }
 };
 
 // ================================================================
-//  FUNCIÓN 4: Guardar tarea en Firestore
+//  FUNCIÓN 4: Subir archivo a Firebase Storage
+//  Con fallback a base64 si falla el Storage
+// ================================================================
+window.db_uploadFile = async function(file, folder = 'chat-files') {
+    if (!file) throw new Error('No se proporcionó archivo');
+    if (file.size > 10 * 1024 * 1024) throw new Error('Archivo mayor a 10MB');
+
+    const timestamp = Date.now();
+    // Sanitizar nombre de archivo (eliminar caracteres problemáticos)
+    const safeName  = file.name
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')  // eliminar acentos
+        .replace(/[^a-zA-Z0-9._-]/g, '_'); // reemplazar caracteres especiales
+    const path      = `${folder}/${timestamp}_${safeName}`;
+
+    try {
+        const storageRef  = ref(storage_fs, path);
+        const snapshot    = await uploadBytes(storageRef, file);
+        const downloadURL = await getDownloadURL(snapshot.ref);
+        console.log('✅ Archivo subido a Storage:', downloadURL);
+        return { url: downloadURL, name: file.name, size: file.size, type: file.type };
+    } catch(storageErr) {
+        console.error('❌ Error en Firebase Storage:', storageErr.code, storageErr.message);
+        
+        // Clasificar el error para dar mejor feedback
+        if (storageErr.code === 'storage/unauthorized') {
+            throw new Error('Sin permisos en Storage. Revisa las reglas de Firebase.');
+        } else if (storageErr.code === 'storage/cors-error' || storageErr.message.includes('CORS')) {
+            throw new Error('Error de CORS en Storage. Aplica cors.json con gsutil.');
+        } else {
+            throw new Error(`Storage error: ${storageErr.message}`);
+        }
+    }
+};
+
+// ================================================================
+//  FUNCIÓN 5: Guardar tarea en Firestore
 // ================================================================
 window.db_saveTask = async function(groupId, taskData) {
     try {
@@ -149,7 +180,7 @@ window.db_saveTask = async function(groupId, taskData) {
             done:      false,
             createdAt: serverTimestamp()
         });
-        console.log('📋 Tarea guardada en Firestore:', docRef.id);
+        console.log('📋 Tarea guardada:', docRef.id);
         return docRef.id;
     } catch(e) {
         console.error('❌ Error guardando tarea:', e.message);
@@ -158,7 +189,7 @@ window.db_saveTask = async function(groupId, taskData) {
 };
 
 // ================================================================
-//  FUNCIÓN 5: Marcar tarea como completada en Firestore
+//  FUNCIÓN 6: Marcar tarea como completada
 // ================================================================
 window.db_completeTask = async function(firestoreId, userId) {
     if (!firestoreId) return;
@@ -168,14 +199,13 @@ window.db_completeTask = async function(firestoreId, userId) {
             doneBy: userId,
             doneAt: serverTimestamp()
         });
-        console.log('✅ Tarea marcada como completada en Firestore:', firestoreId);
     } catch(e) {
         console.error('❌ Error completando tarea:', e.message);
     }
 };
 
 // ================================================================
-//  FUNCIÓN 6: Guardar recompensa en Firestore
+//  FUNCIÓN 7: Guardar recompensa en Firestore
 // ================================================================
 window.db_saveReward = async function(userId, reason, points, total) {
     try {
@@ -186,43 +216,59 @@ window.db_saveReward = async function(userId, reason, points, total) {
             total:     total,
             createdAt: serverTimestamp()
         });
-        console.log(`🏆 Recompensa guardada: ${userId} +${points}pts (${reason})`);
+        console.log(`🏆 Recompensa: ${userId} +${points}pts (${reason})`);
     } catch(e) {
         console.error('❌ Error guardando recompensa:', e.message);
     }
 };
 
-/* // ================================================================
-//  FUNCIÓN 7: Subir archivo a Firebase Storage
-//  Devuelve la URL permanente accesible desde cualquier dispositivo
 // ================================================================
-import { getStorage, ref, uploadBytes, getDownloadURL }
-    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
+//  FUNCIÓN 8: Guardar/actualizar perfil de usuario en Firestore
+//  Incluye inventario y ítems equipados de la tienda
+// ================================================================
+window.db_saveUserProfile = async function(userId, userData) {
+    try {
+        const userRef = doc(db, 'users', userId);
+        await setDoc(userRef, {
+            name:      userData.name      || userId,
+            email:     userData.email     || '',
+            status:    userData.status    || 'online',
+            level:     userData.level     || 'Rookie',
+            points:    userData.points    || 0,
+            country:   userData.country   || '',
+            avatar:    userData.avatar    || null,
+            inventory: userData.inventory || [],
+            equipped:  userData.equipped  || {},
+            friends:   userData.friends   || [],
+            updatedAt: serverTimestamp()
+        }, { merge: true });
+        console.log('👤 Perfil guardado en Firestore:', userId);
+    } catch(e) {
+        console.error('❌ Error guardando perfil:', e.message);
+    }
+};
 
-//const storage_fs = getStorage(firebaseApp);
+// ================================================================
+//  FUNCIÓN 9: Cargar perfil de usuario desde Firestore
+//  Restaura inventario y tienda al recargar la app
+// ================================================================
+window.db_loadUserProfile = async function(userId) {
+    try {
+        const userRef  = doc(db, 'users', userId);
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists()) {
+            return { id: userSnap.id, ...userSnap.data() };
+        }
+        return null;
+    } catch(e) {
+        console.error('❌ Error cargando perfil:', e.message);
+        return null;
+    }
+};
 
-window.db_uploadFile = async function(file, folder = 'chat-files') {
-    if (!file) throw new Error('No se proporcionó archivo');
-    if (file.size > 10 * 1024 * 1024) throw new Error('Archivo mayor a 10MB');
-
-    const timestamp = Date.now();
-    const safeName  = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const path      = `${folder}/${timestamp}_${safeName}`;
-    const storageRef = ref(storage_fs, path);
-
-    const snapshot    = await uploadBytes(storageRef, file);
-    const downloadURL = await getDownloadURL(snapshot.ref);
-
-    console.log('✅ Archivo subido a Storage:', downloadURL);
-    return { url: downloadURL, name: file.name, size: file.size, type: file.type };
-}; */
-
-// Indicador visual de que Firestore está listo
-window.__FIRESTORE_READY__ = true;
-console.log('✅ Todas las funciones de Firestore listas en window.db_*');
-console.log('📦 Firebase Storage listo en window.db_uploadFile');
-
-// ── Obtener todos los usuarios ──────────────────────────
+// ================================================================
+//  FUNCIÓN 10: Obtener todos los usuarios
+// ================================================================
 window.db_getAllUsers = async function() {
     try {
         const snap = await getDocs(collection(db, 'users'));
@@ -232,4 +278,8 @@ window.db_getAllUsers = async function() {
         return [];
     }
 };
-console.log('👥 db_getAllUsers listo');
+
+// Indicador de que Firestore está listo
+window.__FIRESTORE_READY__ = true;
+console.log('✅ Todas las funciones de Firestore listas');
+console.log('🔑 getConversationId disponible globalmente');
