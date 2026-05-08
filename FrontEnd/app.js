@@ -404,6 +404,9 @@ function selectChat(type, id, name, avatarType, liEl) {
         if (remoteAvatarEl) remoteAvatarEl.src = `https://api.dicebear.com/7.x/adventurer/svg?seed=${id}`;
     }
 
+    const chatEl = document.getElementById('chat-messages');
+    if (chatEl) chatEl.innerHTML = '<div class="day-divider"><span>Hoy</span></div>';
+    
      // Cargar historial — Firestore tiene prioridad, localStorage como fallback
     if (window.db_loadMessages && id !== 'asistente_ia') {
         // Mostrar localStorage inmediatamente mientras carga Firestore
@@ -677,7 +680,7 @@ function clearFile() {
     pendingFile=null; pendingFileUrl=null;
     document.getElementById('file-preview').style.display='none';
 }
-function previewFile(event) {
+/* function previewFile(event) {
     const file = event.target.files[0];
     if (!file) return;
     if (file.size > 10*1024*1024) { showToast('Archivo muy grande (máx 10MB)','error'); return; }
@@ -701,7 +704,70 @@ function previewFile(event) {
     pendingFile    = file;
     pendingFileUrl = null;
     document.getElementById('send-file-btn').disabled = false;
+} */
+
+function previewFile(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    if (file.size > 10*1024*1024) { showToast('Archivo muy grande (máx 10MB)','error'); return; }
+
+    const isImage = file.type.startsWith('image/');
+    const isVideo = file.type.startsWith('video/');
+    const isAudio = file.type.startsWith('audio/');
+    const area    = document.getElementById('file-preview-area');
+    area.style.display = 'block';
+    document.getElementById('file-drop').style.display = 'none';
+
+    const localUrl = URL.createObjectURL(file);
+
+    if (isImage) {
+        document.getElementById('img-preview').src = localUrl;
+        document.getElementById('img-preview').style.display = 'block';
+        document.getElementById('file-info-row').style.display = 'none';
+    } else if (isVideo) {
+        // Preview de video
+        let vPrev = document.getElementById('video-preview');
+        if (!vPrev) {
+            vPrev = document.createElement('video');
+            vPrev.id = 'video-preview';
+            vPrev.controls = true;
+            vPrev.style.cssText = 'max-width:100%;border-radius:8px;margin-bottom:8px;';
+            document.getElementById('file-preview-area').insertBefore(vPrev, document.getElementById('file-info-row'));
+        }
+        vPrev.src = localUrl;
+        vPrev.style.display = 'block';
+        document.getElementById('img-preview').style.display = 'none';
+        document.getElementById('file-info-row').style.display = 'none';
+    } else if (isAudio) {
+        // Preview de audio
+        let aPrev = document.getElementById('audio-preview');
+        if (!aPrev) {
+            aPrev = document.createElement('audio');
+            aPrev.id = 'audio-preview';
+            aPrev.controls = true;
+            aPrev.style.cssText = 'width:100%;margin-bottom:8px;';
+            document.getElementById('file-preview-area').insertBefore(aPrev, document.getElementById('file-info-row'));
+        }
+        aPrev.src = localUrl;
+        aPrev.style.display = 'block';
+        document.getElementById('img-preview').style.display = 'none';
+        document.getElementById('file-info-row').style.display = 'none';
+    } else {
+        // Documentos y otros
+        document.getElementById('img-preview').style.display = 'none';
+        document.getElementById('file-info-row').style.display = 'flex';
+        document.getElementById('file-name2').textContent = file.name;
+        document.getElementById('file-size').textContent = (file.size/1024).toFixed(1)+' KB';
+        // Ocultar previews de video/audio si quedaron visibles
+        document.getElementById('video-preview')?.style && (document.getElementById('video-preview').style.display='none');
+        document.getElementById('audio-preview')?.style && (document.getElementById('audio-preview').style.display='none');
+    }
+
+    pendingFile = file;
+    pendingFileUrl = null;
+    document.getElementById('send-file-btn').disabled = false;
 }
+
 function handleDrop(e) {
     e.preventDefault();
     const dt = e.dataTransfer;
@@ -779,6 +845,14 @@ async function sendFile() {
         sendBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Enviar';
     }
 }
+/* function resetFileModal() {
+    pendingFile = null; pendingFileUrl = null;
+    document.getElementById('file-drop').style.display         = 'block';
+    document.getElementById('file-preview-area').style.display  = 'none';
+    document.getElementById('img-preview').style.display        = 'none';
+    document.getElementById('send-file-btn').disabled           = true;
+    document.getElementById('send-file-btn').innerHTML          = '<i class="fas fa-paper-plane"></i> Enviar';
+} */
 function resetFileModal() {
     pendingFile = null; pendingFileUrl = null;
     document.getElementById('file-drop').style.display         = 'block';
@@ -786,6 +860,11 @@ function resetFileModal() {
     document.getElementById('img-preview').style.display        = 'none';
     document.getElementById('send-file-btn').disabled           = true;
     document.getElementById('send-file-btn').innerHTML          = '<i class="fas fa-paper-plane"></i> Enviar';
+    // Limpiar previews dinámicos
+    const vp = document.getElementById('video-preview');
+    if (vp) { vp.src=''; vp.style.display='none'; }
+    const ap = document.getElementById('audio-preview');
+    if (ap) { ap.src=''; ap.style.display='none'; }
 }
 
 // ─── LOCATION ─────────────────────────────────────────────
